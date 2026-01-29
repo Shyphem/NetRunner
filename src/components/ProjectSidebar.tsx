@@ -1,7 +1,7 @@
 import { useAppStore } from "@/store/useStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, Target, Trash2, Settings, Star } from "lucide-react";
+import { Plus, Target, Trash2, Settings, Star, LogOut } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,57 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
+
+const PasswordChangeForm = () => {
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [message, setMessage] = useState("");
+    const [error, setError] = useState("");
+
+    const handleChangePassword = async () => {
+        setMessage("");
+        setError("");
+        try {
+            const token = localStorage.getItem('netrunner_token');
+            const res = await fetch('http://localhost:3001/api/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ currentPassword, newPassword }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setMessage("Password updated successfully.");
+                setCurrentPassword("");
+                setNewPassword("");
+            } else {
+                setError(data.error || "Failed to update password.");
+            }
+        } catch (err) {
+            setError("Connection failed.");
+        }
+    };
+
+    return (
+        <div className="space-y-3">
+            <div className="space-y-1">
+                <Label className="text-xs text-slate-400">Current Password</Label>
+                <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="bg-slate-900 border-slate-800 h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+                <Label className="text-xs text-slate-400">New Password</Label>
+                <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="bg-slate-900 border-slate-800 h-8 text-sm" />
+            </div>
+            {message && <p className="text-xs text-green-500">{message}</p>}
+            {error && <p className="text-xs text-red-500">{error}</p>}
+            <Button onClick={handleChangePassword} size="sm" className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200">
+                Update Password
+            </Button>
+        </div>
+    );
+};
 
 const ProjectSidebar = () => {
     const {
@@ -100,6 +151,25 @@ const ProjectSidebar = () => {
                             <p className="mt-4 text-xs text-slate-500">
                                 To create a template, arrange your nodes on the canvas and click "Save Template" in the top right.
                             </p>
+                        </div>
+
+                        <div className="mt-8 border-t border-slate-800 pt-6">
+                            <h3 className="text-sm font-semibold text-green-500 mb-4">Security</h3>
+                            <PasswordChangeForm />
+                        </div>
+
+                        <div className="mt-8 border-t border-slate-800 pt-6">
+                            <Button
+                                variant="destructive"
+                                className="w-full flex items-center justify-center gap-2"
+                                onClick={() => {
+                                    localStorage.removeItem('netrunner_token');
+                                    window.location.reload();
+                                }}
+                            >
+                                <LogOut size={16} />
+                                Logout
+                            </Button>
                         </div>
                     </SheetContent>
                 </Sheet>

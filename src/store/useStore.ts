@@ -23,6 +23,14 @@ interface AppState {
     activeTargetId: string | null;
     defaultTemplateId: string | null;
 
+    // Terminal State
+    terminal: {
+        isOpen: boolean;
+        command: string | null;
+        targetNodeId: string | null;
+    };
+    setTerminal: (isOpen: boolean, command?: string | null, targetNodeId?: string | null) => void;
+
     // Actions
     addTarget: (domain: string, templateId?: string | null) => void;
     removeTarget: (id: string) => void;
@@ -46,6 +54,7 @@ export const useAppStore = create<AppState>()(
             templates: [],
             activeTargetId: null,
             defaultTemplateId: null,
+            terminal: { isOpen: false, command: null, targetNodeId: null },
 
             addTarget: (domain: string, templateId?: string | null) => {
                 let nodes: Node[] = [];
@@ -160,6 +169,12 @@ export const useAppStore = create<AppState>()(
                 set({ defaultTemplateId: id });
             },
 
+
+
+            setTerminal: (isOpen, command = null, targetNodeId = null) => {
+                set({ terminal: { isOpen, command, targetNodeId } });
+            },
+
             getActiveTarget: () => {
                 const state = get();
                 return state.targets.find((t) => t.id === state.activeTargetId);
@@ -168,11 +183,11 @@ export const useAppStore = create<AppState>()(
         {
             name: 'bountyflow-storage',
             storage: createJSONStorage(() => ({
-                getItem: async (name) => {
+                getItem: async (_name) => {
                     try {
-                        const apiKey = localStorage.getItem('netrunner_api_key') || 'netrunner_default_2025';
+                        const token = localStorage.getItem('netrunner_token');
                         const response = await fetch('http://localhost:3001/api/data', {
-                            headers: { 'x-api-key': apiKey }
+                            headers: { 'Authorization': `Bearer ${token}` }
                         });
                         if (!response.ok) return null;
                         const data = await response.json();
@@ -182,15 +197,15 @@ export const useAppStore = create<AppState>()(
                         return null;
                     }
                 },
-                setItem: async (name, value) => {
+                setItem: async (_name, value) => {
                     try {
-                        const apiKey = localStorage.getItem('netrunner_api_key') || 'netrunner_default_2025';
+                        const token = localStorage.getItem('netrunner_token');
                         const parsed = JSON.parse(value);
                         await fetch('http://localhost:3001/api/save', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'x-api-key': apiKey
+                                'Authorization': `Bearer ${token}`
                             },
                             body: JSON.stringify(parsed)
                         });

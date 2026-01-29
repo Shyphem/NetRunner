@@ -94,6 +94,17 @@ const CanvasWithStore = ({ target }: { target: any }) => {
         return () => clearTimeout(handler);
     }, [nodes, edges, target.id, updateTargetNodes, updateTargetEdges]);
 
+    // Sync from Store to Local (One-way sync for external updates like Terminal)
+    // We compare JSON stringified to avoid loop if object ref changes but content is same
+    useEffect(() => {
+        if (JSON.stringify(target.nodes) !== JSON.stringify(nodes)) {
+            // Only update if different.
+            // WARNING: This might conflict if user is dragging node while terminal finishes.
+            // But usually terminal runs while user is waiting.
+            setNodes(target.nodes);
+        }
+    }, [target.nodes, setNodes]); // Remove 'nodes' from dependency to avoid loop? No, we need to compare.
+
     const onNodeClick = (_: React.MouseEvent, node: Node) => {
         setSelectedNode(node);
         setIsSidebarOpen(true);

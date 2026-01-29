@@ -1,9 +1,1003 @@
 {
   "state": {
-    "targets": [],
+    "targets": [
+      {
+        "id": "a47faab2-cbeb-41f4-aaba-6ef123a20dad",
+        "name": "shyphem.fr",
+        "nodes": [
+          {
+            "id": "recon",
+            "type": "custom",
+            "position": {
+              "x": 1500,
+              "y": 0
+            },
+            "data": {
+              "label": "Reconnaissance",
+              "category": "Root",
+              "command": "",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "sub-enum",
+            "type": "custom",
+            "position": {
+              "x": 1500,
+              "y": 200
+            },
+            "data": {
+              "label": "Subdomain Enumeration",
+              "category": "Passive Enum",
+              "command": "",
+              "content": ""
+            },
+            "width": 232,
+            "height": 86
+          },
+          {
+            "id": "passive",
+            "type": "custom",
+            "position": {
+              "x": 600,
+              "y": 450
+            },
+            "data": {
+              "label": "Passive Enum",
+              "category": "Passive Enum",
+              "command": "",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "subfinder",
+            "type": "custom",
+            "position": {
+              "x": 0,
+              "y": 700
+            },
+            "data": {
+              "label": "Subfinder",
+              "category": "Passive Enum",
+              "command": "subfinder -d shyphem.fr -all -silent -o subfinder-subs.txt",
+              "content": "<h3>Run at 15:53:39</h3><pre><code>imap.shyphem.fr\nmail.shyphem.fr\npop.shyphem.fr\nsmtp.shyphem.fr\n</code></pre><p></p><h3>Run at 15:58:13</h3><pre><code>imap.shyphem.fr\nmail.shyphem.fr\npop.shyphem.fr\nsmtp.shyphem.fr\n</code></pre><p></p>"
+            },
+            "width": 200,
+            "height": 86,
+            "selected": true,
+            "dragging": false
+          },
+          {
+            "id": "assetfinder",
+            "type": "custom",
+            "position": {
+              "x": 300,
+              "y": 700
+            },
+            "data": {
+              "label": "Assetfinder",
+              "category": "Passive Enum",
+              "command": "assetfinder -subs-only shyphem.fr | tee assetfinder_subs.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "findomain",
+            "type": "custom",
+            "position": {
+              "x": 600,
+              "y": 700
+            },
+            "data": {
+              "label": "Findomain",
+              "category": "Passive Enum",
+              "command": "findomain --quiet -t shyphem.fr | tee findomain-subs.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "sublist3r",
+            "type": "custom",
+            "position": {
+              "x": 900,
+              "y": 700
+            },
+            "data": {
+              "label": "Sublist3r",
+              "category": "Passive Enum",
+              "command": "sublist3r -d shyphem.fr -t 50 -o sublist3r.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "amass",
+            "type": "custom",
+            "position": {
+              "x": 1200,
+              "y": 700
+            },
+            "data": {
+              "label": "Amass",
+              "category": "Passive Enum",
+              "command": "amass enum -passive -d shyphem.fr -o amass_passive.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "active",
+            "type": "custom",
+            "position": {
+              "x": 2400,
+              "y": 450
+            },
+            "data": {
+              "label": "Active Enum",
+              "category": "Active Enum",
+              "command": "",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "subbrute",
+            "type": "custom",
+            "position": {
+              "x": 1800,
+              "y": 700
+            },
+            "data": {
+              "label": "Subbrute",
+              "category": "Active Enum",
+              "command": "python3 /usr/share/subbrute/subbrute.py shyphem.fr -w /usr/share/wordlists/nmap.lst -o brute_subs.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "massdns",
+            "type": "custom",
+            "position": {
+              "x": 2100,
+              "y": 700
+            },
+            "data": {
+              "label": "MassDNS",
+              "category": "Active Enum",
+              "command": "massdns -r /usr/share/wordlists/resolvers.txt -t A -o S -w shyphem.fr.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "ffuf-sub",
+            "type": "custom",
+            "position": {
+              "x": 2400,
+              "y": 700
+            },
+            "data": {
+              "label": "FFUF Subdomains",
+              "category": "Active Enum",
+              "command": "ffuf -u http://FUZZ.shyphem.fr -c -w /usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-110000.txt -t 100 -fc 403",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "merge",
+            "type": "custom",
+            "position": {
+              "x": 1500,
+              "y": 900
+            },
+            "data": {
+              "label": "Merge Results",
+              "category": "Active Enum",
+              "command": "cat *.txt | sort -u > all_subdomains.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "probing",
+            "type": "custom",
+            "position": {
+              "x": 1500,
+              "y": 1200
+            },
+            "data": {
+              "label": "HTTP Probing",
+              "category": "Probing",
+              "command": "",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "httpx",
+            "type": "custom",
+            "position": {
+              "x": 1100,
+              "y": 1450
+            },
+            "data": {
+              "label": "httpx",
+              "category": "Probing",
+              "command": "cat all_subdomains.txt | httpx -silent -o live_subdomains.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "httprobe",
+            "type": "custom",
+            "position": {
+              "x": 1900,
+              "y": 1450
+            },
+            "data": {
+              "label": "httprobe",
+              "category": "Probing",
+              "command": "cat all_subdomains.txt | httprobe | tee -a alive_subdomains.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "port-ip",
+            "type": "custom",
+            "position": {
+              "x": 2600,
+              "y": 1700
+            },
+            "data": {
+              "label": "Port & IP Scanning",
+              "category": "Port Scanning",
+              "command": "",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "dnsx",
+            "type": "custom",
+            "position": {
+              "x": 2200,
+              "y": 1950
+            },
+            "data": {
+              "label": "dnsx",
+              "category": "Port Scanning",
+              "command": "dnsx -l live_subdomains.txt -a -resp-only -o live_ips.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "shodanx",
+            "type": "custom",
+            "position": {
+              "x": 2600,
+              "y": 1950
+            },
+            "data": {
+              "label": "Shodanx",
+              "category": "Port Scanning",
+              "command": "shodanx domain --domain \"shyphem.fr\"",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "naabu",
+            "type": "custom",
+            "position": {
+              "x": 3000,
+              "y": 1950
+            },
+            "data": {
+              "label": "Naabu",
+              "category": "Port Scanning",
+              "command": "naabu -list live_subdomains.txt -o naabu_scans.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "fingerprint",
+            "type": "custom",
+            "position": {
+              "x": 600,
+              "y": 1700
+            },
+            "data": {
+              "label": "Fingerprinting",
+              "category": "Fingerprinting",
+              "command": "",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "httpx-tech",
+            "type": "custom",
+            "position": {
+              "x": 300,
+              "y": 1950
+            },
+            "data": {
+              "label": "httpx Tech Detect",
+              "category": "Fingerprinting",
+              "command": "httpx -l live_subdomains.txt -silent -status-code -tech-detect -title -sc -location -td -cl -probe -o httpx_output.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "waf",
+            "type": "custom",
+            "position": {
+              "x": 900,
+              "y": 1950
+            },
+            "data": {
+              "label": "WAF ID",
+              "category": "Fingerprinting",
+              "command": "cat httpx_output.txt | grep 403",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "visual",
+            "type": "custom",
+            "position": {
+              "x": 1400,
+              "y": 1700
+            },
+            "data": {
+              "label": "Visual Recon",
+              "category": "Visual Recon",
+              "command": "",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "aquatone",
+            "type": "custom",
+            "position": {
+              "x": 1100,
+              "y": 1950
+            },
+            "data": {
+              "label": "Aquatone",
+              "category": "Visual Recon",
+              "command": "cat live_subdomains.txt | aquatone -out screenshots",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "gowitness",
+            "type": "custom",
+            "position": {
+              "x": 1700,
+              "y": 1950
+            },
+            "data": {
+              "label": "Gowitness",
+              "category": "Visual Recon",
+              "command": "gowitness scan file -f live_subdomains.txt --threads 10 --screenshot-path screenshots",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "content-disc",
+            "type": "custom",
+            "position": {
+              "x": 800,
+              "y": 2400
+            },
+            "data": {
+              "label": "Content Discovery",
+              "category": "Content Discovery",
+              "command": "",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "ffuf-dir",
+            "type": "custom",
+            "position": {
+              "x": 350,
+              "y": 2650
+            },
+            "data": {
+              "label": "FFUF Dir",
+              "category": "Content Discovery",
+              "command": "ffuf -u https://shyphem.fr/FUZZ -w /usr/share/wordlists/dirb/common.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "gobuster",
+            "type": "custom",
+            "position": {
+              "x": 800,
+              "y": 2650
+            },
+            "data": {
+              "label": "Gobuster",
+              "category": "Content Discovery",
+              "command": "gobuster dir --url https://shyphem.fr --wordlist /usr/share/wordlists/dirb/common.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "dirsearch",
+            "type": "custom",
+            "position": {
+              "x": 1250,
+              "y": 2650
+            },
+            "data": {
+              "label": "Dirsearch",
+              "category": "Content Discovery",
+              "command": "dirsearch -u https://shyphem.fr/ -w /usr/share/wordlists/dirnext/general.txt --full-url --random-agent -x 404,400 -e php,html,js",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "urls",
+            "type": "custom",
+            "position": {
+              "x": 2200,
+              "y": 2400
+            },
+            "data": {
+              "label": "URL Extraction",
+              "category": "URL Extraction",
+              "command": "",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "wayback",
+            "type": "custom",
+            "position": {
+              "x": 1750,
+              "y": 2650
+            },
+            "data": {
+              "label": "Waybackurls",
+              "category": "URL Extraction",
+              "command": "cat live_subs.txt | waybackurls | anew wayback_urls.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "gau",
+            "type": "custom",
+            "position": {
+              "x": 2200,
+              "y": 2650
+            },
+            "data": {
+              "label": "Gau",
+              "category": "URL Extraction",
+              "command": "cat live_subs.txt | gau | anew gau_urls.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "katana",
+            "type": "custom",
+            "position": {
+              "x": 2650,
+              "y": 2650
+            },
+            "data": {
+              "label": "Katana",
+              "category": "URL Extraction",
+              "command": "katana -list live_subdomain.txt -f qurl | anew katana_urls.txt",
+              "content": ""
+            },
+            "width": 200,
+            "height": 86
+          },
+          {
+            "id": "vuln",
+            "type": "custom",
+            "position": {
+              "x": 2200,
+              "y": 3000
+            },
+            "data": {
+              "label": "Vuln Filtering",
+              "category": "Vulnerability Filtering",
+              "command": "",
+              "content": ""
+            },
+            "width": 227,
+            "height": 86
+          },
+          {
+            "id": "gf-xss",
+            "type": "custom",
+            "position": {
+              "x": 1800,
+              "y": 3250
+            },
+            "data": {
+              "label": "GF XSS",
+              "category": "Vulnerability Filtering",
+              "command": "cat all_urls.txt | gf xss | anew xss_candidates.txt",
+              "content": ""
+            },
+            "width": 227,
+            "height": 86
+          },
+          {
+            "id": "gf-sqli",
+            "type": "custom",
+            "position": {
+              "x": 2200,
+              "y": 3250
+            },
+            "data": {
+              "label": "GF SQLi",
+              "category": "Vulnerability Filtering",
+              "command": "cat all_urls.txt | gf sqli | anew sqli_candidates.txt",
+              "content": ""
+            },
+            "width": 227,
+            "height": 86
+          },
+          {
+            "id": "gf-ssti",
+            "type": "custom",
+            "position": {
+              "x": 2600,
+              "y": 3250
+            },
+            "data": {
+              "label": "GF SSTI",
+              "category": "Vulnerability Filtering",
+              "command": "cat all_urls.txt | gf ssti| anew ssti_candidates.txt",
+              "content": ""
+            },
+            "width": 227,
+            "height": 86
+          }
+        ],
+        "edges": [
+          {
+            "id": "e-recon-sub-enum",
+            "source": "recon",
+            "target": "sub-enum",
+            "animated": true,
+            "style": {
+              "stroke": "#3b82f6",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-sub-enum-passive",
+            "source": "sub-enum",
+            "target": "passive",
+            "animated": true,
+            "style": {
+              "stroke": "#3b82f6",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-passive-subfinder",
+            "source": "passive",
+            "target": "subfinder",
+            "animated": true,
+            "style": {
+              "stroke": "#3b82f6",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-passive-assetfinder",
+            "source": "passive",
+            "target": "assetfinder",
+            "animated": true,
+            "style": {
+              "stroke": "#3b82f6",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-passive-findomain",
+            "source": "passive",
+            "target": "findomain",
+            "animated": true,
+            "style": {
+              "stroke": "#3b82f6",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-passive-sublist3r",
+            "source": "passive",
+            "target": "sublist3r",
+            "animated": true,
+            "style": {
+              "stroke": "#3b82f6",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-passive-amass",
+            "source": "passive",
+            "target": "amass",
+            "animated": true,
+            "style": {
+              "stroke": "#3b82f6",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-sub-enum-active",
+            "source": "sub-enum",
+            "target": "active",
+            "animated": true,
+            "style": {
+              "stroke": "#ef4444",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-active-subbrute",
+            "source": "active",
+            "target": "subbrute",
+            "animated": true,
+            "style": {
+              "stroke": "#ef4444",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-active-massdns",
+            "source": "active",
+            "target": "massdns",
+            "animated": true,
+            "style": {
+              "stroke": "#ef4444",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-active-ffuf-sub",
+            "source": "active",
+            "target": "ffuf-sub",
+            "animated": true,
+            "style": {
+              "stroke": "#ef4444",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-active-merge",
+            "source": "active",
+            "target": "merge",
+            "animated": true,
+            "style": {
+              "stroke": "#ef4444",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-merge-probing",
+            "source": "merge",
+            "target": "probing",
+            "animated": true,
+            "style": {
+              "stroke": "#f97316",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-probing-httpx",
+            "source": "probing",
+            "target": "httpx",
+            "animated": true,
+            "style": {
+              "stroke": "#f97316",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-probing-httprobe",
+            "source": "probing",
+            "target": "httprobe",
+            "animated": true,
+            "style": {
+              "stroke": "#f97316",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-probing-port-ip",
+            "source": "probing",
+            "target": "port-ip",
+            "animated": true,
+            "style": {
+              "stroke": "#10b981",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-port-ip-dnsx",
+            "source": "port-ip",
+            "target": "dnsx",
+            "animated": true,
+            "style": {
+              "stroke": "#10b981",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-port-ip-shodanx",
+            "source": "port-ip",
+            "target": "shodanx",
+            "animated": true,
+            "style": {
+              "stroke": "#10b981",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-port-ip-naabu",
+            "source": "port-ip",
+            "target": "naabu",
+            "animated": true,
+            "style": {
+              "stroke": "#10b981",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-httpx-fingerprint",
+            "source": "httpx",
+            "target": "fingerprint",
+            "animated": true,
+            "style": {
+              "stroke": "#a855f7",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-fingerprint-httpx-tech",
+            "source": "fingerprint",
+            "target": "httpx-tech",
+            "animated": true,
+            "style": {
+              "stroke": "#a855f7",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-fingerprint-waf",
+            "source": "fingerprint",
+            "target": "waf",
+            "animated": true,
+            "style": {
+              "stroke": "#a855f7",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-httpx-visual",
+            "source": "httpx",
+            "target": "visual",
+            "animated": true,
+            "style": {
+              "stroke": "#ec4899",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-visual-aquatone",
+            "source": "visual",
+            "target": "aquatone",
+            "animated": true,
+            "style": {
+              "stroke": "#ec4899",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-visual-gowitness",
+            "source": "visual",
+            "target": "gowitness",
+            "animated": true,
+            "style": {
+              "stroke": "#ec4899",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-httpx-content-disc",
+            "source": "httpx",
+            "target": "content-disc",
+            "animated": true,
+            "style": {
+              "stroke": "#eab308",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-content-disc-ffuf-dir",
+            "source": "content-disc",
+            "target": "ffuf-dir",
+            "animated": true,
+            "style": {
+              "stroke": "#eab308",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-content-disc-gobuster",
+            "source": "content-disc",
+            "target": "gobuster",
+            "animated": true,
+            "style": {
+              "stroke": "#eab308",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-content-disc-dirsearch",
+            "source": "content-disc",
+            "target": "dirsearch",
+            "animated": true,
+            "style": {
+              "stroke": "#eab308",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-httpx-urls",
+            "source": "httpx",
+            "target": "urls",
+            "animated": true,
+            "style": {
+              "stroke": "#06b6d4",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-urls-wayback",
+            "source": "urls",
+            "target": "wayback",
+            "animated": true,
+            "style": {
+              "stroke": "#06b6d4",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-urls-gau",
+            "source": "urls",
+            "target": "gau",
+            "animated": true,
+            "style": {
+              "stroke": "#06b6d4",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-urls-katana",
+            "source": "urls",
+            "target": "katana",
+            "animated": true,
+            "style": {
+              "stroke": "#06b6d4",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-katana-vuln",
+            "source": "katana",
+            "target": "vuln",
+            "animated": true,
+            "style": {
+              "stroke": "#f43f5e",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-vuln-gf-xss",
+            "source": "vuln",
+            "target": "gf-xss",
+            "animated": true,
+            "style": {
+              "stroke": "#f43f5e",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-vuln-gf-sqli",
+            "source": "vuln",
+            "target": "gf-sqli",
+            "animated": true,
+            "style": {
+              "stroke": "#f43f5e",
+              "strokeWidth": 2
+            }
+          },
+          {
+            "id": "e-vuln-gf-ssti",
+            "source": "vuln",
+            "target": "gf-ssti",
+            "animated": true,
+            "style": {
+              "stroke": "#f43f5e",
+              "strokeWidth": 2
+            }
+          }
+        ]
+      }
+    ],
     "templates": [],
-    "activeTargetId": null,
-    "defaultTemplateId": null
+    "activeTargetId": "a47faab2-cbeb-41f4-aaba-6ef123a20dad",
+    "defaultTemplateId": null,
+    "terminal": {
+      "isOpen": true,
+      "command": "subfinder -d shyphem.fr -all -silent -o subfinder-subs.txt",
+      "targetNodeId": "subfinder"
+    }
   },
   "version": 0
 }
