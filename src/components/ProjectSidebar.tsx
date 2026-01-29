@@ -58,7 +58,7 @@ const ProjectSidebar = () => {
                         <SheetHeader>
                             <SheetTitle className="text-white">Settings & Templates</SheetTitle>
                             <SheetDescription className="text-slate-400">
-                                Manage your saved workflow templates.
+                                Configure templates.
                             </SheetDescription>
                         </SheetHeader>
 

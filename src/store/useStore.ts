@@ -166,8 +166,40 @@ export const useAppStore = create<AppState>()(
             },
         }),
         {
-            name: 'bountyflow-storage', // unique name
-            storage: createJSONStorage(() => localStorage),
+            name: 'bountyflow-storage',
+            storage: createJSONStorage(() => ({
+                getItem: async (name) => {
+                    try {
+                        const apiKey = localStorage.getItem('netrunner_api_key') || 'netrunner_default_2025';
+                        const response = await fetch('http://localhost:3001/api/data', {
+                            headers: { 'x-api-key': apiKey }
+                        });
+                        if (!response.ok) return null;
+                        const data = await response.json();
+                        return JSON.stringify(data);
+                    } catch (err) {
+                        console.error('Failed to load data:', err);
+                        return null;
+                    }
+                },
+                setItem: async (name, value) => {
+                    try {
+                        const apiKey = localStorage.getItem('netrunner_api_key') || 'netrunner_default_2025';
+                        const parsed = JSON.parse(value);
+                        await fetch('http://localhost:3001/api/save', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'x-api-key': apiKey
+                            },
+                            body: JSON.stringify(parsed)
+                        });
+                    } catch (err) {
+                        console.error('Failed to save data:', err);
+                    }
+                },
+                removeItem: () => { },
+            })),
         }
     )
 );
