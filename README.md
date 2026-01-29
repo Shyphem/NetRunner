@@ -1,64 +1,127 @@
-# BountyFlow
+# ⚡ NetRunner
 
-BountyFlow is a specialized Bug Bounty Methodology and Workflow Manager designed for security researchers. It combines an "Infinite Canvas" visualization of your reconnaissance process with a Notion-like rich text editor for documentation.
+![Version](https://img.shields.io/badge/version-1.0.0-blueviolet?style=for-the-badge) 
+![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-active-success?style=for-the-badge)
 
-## Features
+> **The Ultimate Bug Bounty Methodology & Workflow Manager.**
+> 
+> *Visualize. Scan. Exploit. Document.*
 
-- **Infinite Methodology Canvas**: Visualize your entire workflow (Recon, Scanning, Exploitation) as a dynamic node tree using React Flow.
-- **Granular Reconnaissance Tree**: Pre-loaded with a comprehensive, step-by-step bug bounty methodology based on industry standards.
-- **Interactive Tools**: Nodes represent specific tools (e.g., Subfinder, httpx) and contain exact, copy-pasteable bash commands.
-- **Rich Text Editor**: Powered by Tiptap, the sidebar editor supports Markdown, syntax highlighting, and slash commands.
-- **Node Management**:
-  - **Dynamic Updates**: Edits in the sidebar instantly reflect on the canvas.
-  - **Customizable**: Change node categories (colors) to track your progress (e.g., mark a step as "Active Enum" red).
-  - **Data Injection**: Automatically loads knowledge base content from Markdown files.
-- **Cyberpunk Aesthetic**: A sleek, dark-themed UI built with Tailwind CSS and Shadcn UI, designed for focus.
+---
 
-## Tech Stack
+## 🚀 Overview
 
-- **Framework**: React + Vite
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **UI Components**: Shadcn UI, Lucide React
-- **Canvas**: React Flow
-- **Editor**: Tiptap (Headless rich-text editor)
+**NetRunner** is a specialized tool designed for security researchers and bug bounty hunters. It combines an **"Infinite Canvas"** visualization of your reconnaissance process with a powerful **Integrated Terminal** and **Rich Text Documentation** system. 
 
-## Getting Started
+Navigate your workflow as a dynamic node tree, execute tools directly from the UI, and have your findings automatically documented.
+
+## ✨ Key Features
+
+### 🧠 **Infinite Methodology Canvas**
+Visualize your entire workflow (Recon, Scanning, Exploitation) as a dynamic node tree using **React Flow**. Drag, drop, and connect steps to create your perfect attack path.
+
+### 🛡️ **Granular Reconnaissance Tree**
+Comes pre-loaded with a comprehensive, step-by-step bug bounty methodology based on industry standards. Never miss a step in your recon process.
+
+### 💻 **Integrated Terminal**
+Execute tools directly from the UI! A real-time terminal powered by **xterm.js** and **Socket.io** lets you run commands like `subfinder` or `nmap` without leaving the app.
+*   **Auto-Documentation**: Command outputs are automatically captured and appended to your active node's notes.
+
+### 🔐 **Secure Authentication**
+*   **Username/Password Login**: Secure access with JWT tokens.
+*   **Persistence**: Credentials and state are stored locally in a JSON database (`db.json`).
+*   **User Management**: Easily change your password or logout from the **Settings** panel.
+
+### 📝 **Rich Text Documentation**
+Powered by **Tiptap**, the sidebar editor provides a Notion-like experience.
+*   Markdown Support
+*   Syntax Highlighting
+*   Slash Commands
+
+### 🎨 **Cyberpunk Aesthetic**
+A sleek, dark-themed UI built with **Tailwind CSS** and **Shadcn UI**, designed for focus during late-night hacking sessions.
+
+---
+
+## 🛠️ Tech Stack
+
+| Component | Technology |
+| :--- | :--- |
+| **Frontend** | React + Vite |
+| **Styling** | Tailwind CSS + Shadcn UI |
+| **Canvas** | React Flow |
+| **Terminal** | xterm.js + Socket.io |
+| **Backend** | Node.js + Express |
+| **Database** | Local JSON (LowDB style) |
+
+---
+
+## ⚡ Getting Started
 
 ### Prerequisites
 
-- Node.js (v18+ recommended)
+*   **Node.js** (v18+ recommended)
 
 ### Installation
 
-1.  Clone the repository:
+1.  **Clone the repository**
     ```bash
-    git clone https://github.com/yourusername/bountyflow.git
-    cd bountyflow
+    git clone https://github.com/yourusername/netrunner.git
+    cd netrunner
     ```
 
-2.  Install dependencies:
+2.  **Install dependencies**
     ```bash
     npm install
     ```
-    *Note: If you encounter peer dependency warnings, you can safe ignore them or use `--force` if necessary, but standard install should work.*
 
-3.  Run the development server:
+3.  **Run the application**
     ```bash
     npm run dev
     ```
+    *(This starts both the Frontend and Backend servers concurrently)*
 
-4.  Open your browser at `http://localhost:5173`.
+4.  **Access the App**
+    Open your browser and navigate to: `http://localhost:5173`
 
-## Usage
+### 🔑 Default Credentials
 
-1.  **Navigation**: Drag to pan around the canvas. Scroll to zoom.
-2.  **View Details**: Click on any node (e.g., "Subfinder") to open the Sidebar.
-3.  **Execute Commands**: Copy the pre-defined bash command from the sidebar usage block.
-4.  **Take Notes**: Use the rich text area to document your findings. You use Markdown syntax (e.g., `# Header`, `**bold**`, `> quote`).
-5.  **Customize**: Use the sidebar controls to change the node's category color or delete it from your current flow.
-6.  **Extend**: Click "Add Node" to create custom steps in your workflow.
+| Username | Password |
+| :--- | :--- |
+| `admin` | `password` |
 
-## License
+> **⚠️ IMPORTANT:** Please change your password immediately in the **Settings > Security** panel.
 
-MIT
+---
+
+## 📖 Usage Guide
+
+1.  **🧭 Navigation**: 
+    *   **Pan**: Drag on the canvas.
+    *   **Zoom**: Scroll your mouse wheel.
+    
+2.  **🔍 Detail View**: 
+    *   Click on any node (e.g., "Subfinder") to open the **Sidebar**.
+    
+3.  **⌨️ Execute Commands**: 
+    *   Open the **Terminal Drawer** at the bottom of the screen.
+    *   Run your tools from the nodes.
+    *   Watch as the output is **automatically saved** to your active node's documentation!
+
+4.  **📝 Documentation**: 
+    *   Use the sidebar to take detailed notes using Markdown syntax.
+    
+5.  **⚙️ Management**: 
+    *   Click the **Gear Icon** in the sidebar to access **Settings**.
+    *   Manage **Templates** or **Change Password**.
+    *   **Logout** when you're done.
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**.
+
+---
+*Happy Hacking! 🕵️‍♂️*

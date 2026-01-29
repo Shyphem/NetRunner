@@ -48,7 +48,7 @@ app.use(bodyParser.json({ limit: '10mb' }));
 // Authentication Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'netrunner_secret_key_change_me_in_prod';
 const ADMIN_USERNAME = process.env.NETRUNNER_USER || 'admin';
-const ADMIN_PASSWORD = process.env.NETRUNNER_PASSWORD || 'runner2025';
+const ADMIN_PASSWORD = process.env.NETRUNNER_PASSWORD || 'password';
 
 // Helper: Sign Token
 import jwt from 'jsonwebtoken';
