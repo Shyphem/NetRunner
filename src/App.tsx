@@ -1,11 +1,16 @@
-import WorkflowCanvas from './components/WorkflowCanvas';
+import WorkflowCanvas from "./components/WorkflowCanvas";
+import ProjectSidebar from "./components/ProjectSidebar";
+import './index.css';
 
-function App() {
+const App = () => {
   return (
-    <div className="dark h-screen w-screen overflow-hidden">
-      <WorkflowCanvas />
+    <div className="flex h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans selection:bg-green-500/30">
+      <ProjectSidebar />
+      <div className="flex-1 h-full relative">
+        <WorkflowCanvas />
+      </div>
     </div>
   );
-}
+};
 
 export default App;

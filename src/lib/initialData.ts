@@ -3,7 +3,7 @@ import { type Node, type Edge } from 'reactflow';
 // Dynamically import all markdown files from the knowledge_base
 // const modules = import.meta.glob('/src/assets/knowledge_base/*.md', { as: 'raw', eager: true });
 
-export const getInitialData = (): { nodes: Node[]; edges: Edge[] } => {
+export const generateReconTree = (domain: string): { nodes: Node[]; edges: Edge[] } => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
 
@@ -41,96 +41,97 @@ export const getInitialData = (): { nodes: Node[]; edges: Edge[] } => {
     };
 
     // Root
-    addNode('recon', 'Reconnaissance', 'Root', '', 'Start of the workflow', 1200, 0);
+    const rootX = 1500;
+    addNode('recon', 'Reconnaissance', 'Root', '', '', rootX, 0);
 
     // Branch A: Subdomain Enumeration
-    // Centered relative to root, but branches need wide separation
-    const enumCenter = 1200;
-    addNode('sub-enum', 'Subdomain Enumeration', 'Passive Enum', '', 'Finding subdomains', enumCenter, 200, 'recon');
+    const enumY = 200;
+    addNode('sub-enum', 'Subdomain Enumeration', 'Passive Enum', '', '', rootX, enumY, 'recon');
 
-    // Passive Branch (Left Side)
-    // Shift left by 600px
-    const passiveX = enumCenter - 800;
-    const passiveY = 400;
-    addNode('passive', 'Passive Enum', 'Passive Enum', '', 'Using 3rd party sources', passiveX + 200, passiveY, 'sub-enum');
+    // Passive Branch (Far Left)
+    const passiveGroupX = 600; // Center of passive group
+    const passiveY = 450;
+    addNode('passive', 'Passive Enum', 'Passive Enum', '', '', passiveGroupX, passiveY, 'sub-enum');
 
-    // Passive Tools - Distributed horizontally
-    addNode('subfinder', 'Subfinder', 'Passive Enum', 'subfinder -d target.com -all -silent -o subfinder-subs.txt', 'Fast passive enumeration tool', passiveX, passiveY + 250, 'passive');
-    addNode('assetfinder', 'Assetfinder', 'Passive Enum', 'assetfinder -subs-only target.com | tee assetfinder_subs.txt', 'Finds domains from CAs and sources', passiveX + 250, passiveY + 250, 'passive');
-    addNode('findomain', 'Findomain', 'Passive Enum', 'findomain --quiet -t target.com | tee findomain-subs.txt', 'Rust-based fast enumerator', passiveX + 500, passiveY + 250, 'passive');
-    addNode('sublist3r', 'Sublist3r', 'Passive Enum', 'sublist3r -d target.com -t 50 -o sublist3r.txt', 'Python tool enumerating mostly from search engines', passiveX + 750, passiveY + 250, 'passive');
-    addNode('amass', 'Amass', 'Passive Enum', 'amass enum -passive -d target.com -o amass_passive.txt', 'In-depth enumeration', passiveX + 1000, passiveY + 250, 'passive');
+    // Passive Tools - Distributed horizontally with 300px spacing
+    // Range: 0 to 1200
+    addNode('subfinder', 'Subfinder', 'Passive Enum', `subfinder -d ${domain} -all -silent -o subfinder-subs.txt`, '', 0, passiveY + 250, 'passive');
+    addNode('assetfinder', 'Assetfinder', 'Passive Enum', `assetfinder -subs-only ${domain} | tee assetfinder_subs.txt`, '', 300, passiveY + 250, 'passive');
+    addNode('findomain', 'Findomain', 'Passive Enum', `findomain --quiet -t ${domain} | tee findomain-subs.txt`, '', 600, passiveY + 250, 'passive');
+    addNode('sublist3r', 'Sublist3r', 'Passive Enum', `sublist3r -d ${domain} -t 50 -o sublist3r.txt`, '', 900, passiveY + 250, 'passive');
+    addNode('amass', 'Amass', 'Passive Enum', `amass enum -passive -d ${domain} -o amass_passive.txt`, '', 1200, passiveY + 250, 'passive');
 
-    // Active Branch (Right Side)
-    // Shift right by 600px
-    const activeX = enumCenter + 800;
-    const activeY = 400;
-    addNode('active', 'Active Enum', 'Active Enum', '', 'Bruteforcing and DNS queries', activeX - 200, activeY, 'sub-enum');
+    // Active Branch (Far Right)
+    const activeGroupX = 2400; // Center of active group
+    const activeY = 450;
+    addNode('active', 'Active Enum', 'Active Enum', '', '', activeGroupX, activeY, 'sub-enum');
 
-    // Active Tools
-    addNode('subbrute', 'Subbrute', 'Active Enum', 'python3 subbrute.py target.com -w wordlist.txt -o brute_subs.txt', 'Recursive DNS spidering', activeX - 400, activeY + 250, 'active');
-    addNode('massdns', 'MassDNS', 'Active Enum', '/usr/share/wordlists/2m-subdomains.txt | massdns -r /usr/share/wordlists/resolvers.txt t A -o S -w target.com.txt', 'High performance DNS resolver', activeX, activeY + 250, 'active');
-    addNode('ffuf-sub', 'FFUF Subdomains', 'Active Enum', 'ffuf -u http://FUZZ.target.com -c -w wordlists -t 100 -fc 403 | tee ffuf_subs_output.txt', 'Fuzzing subdomains', activeX + 400, activeY + 250, 'active');
+    // Active Tools - Starting from 1800 to ensure >600px gap from Amass(1200)
+    addNode('subbrute', 'Subbrute', 'Active Enum', `python3 subbrute.py ${domain} -w wordlist.txt -o brute_subs.txt`, '', 1800, activeY + 250, 'active');
+    addNode('massdns', 'MassDNS', 'Active Enum', `/usr/share/wordlists/2m-subdomains.txt | massdns -r /usr/share/wordlists/resolvers.txt t A -o S -w ${domain}.txt`, '', 2100, activeY + 250, 'active');
+    addNode('ffuf-sub', 'FFUF Subdomains', 'Active Enum', `ffuf -u http://FUZZ.${domain} -c -w wordlists -t 100 -fc 403 | tee ffuf_subs_output.txt`, '', 2400, activeY + 250, 'active');
 
-    // Merge (Centered below enumeration)
-    addNode('merge', 'Merge Results', 'Active Enum', 'cat *.txt | anew all_subdomains.txt', 'Combine and deduplicate', enumCenter, 1000, 'active');
+    // Merge (Centered below everything)
+    const mergeY = 900;
+    addNode('merge', 'Merge Results', 'Active Enum', 'cat *.txt | anew all_subdomains.txt', '', rootX, mergeY, 'active');
 
 
     // Branch B: Probing (Below Merge)
-    const probeY = 1300;
-    addNode('probing', 'HTTP Probing', 'Probing', '', 'Finding live hosts', enumCenter, probeY, 'merge'); // Connect to merge logically
+    const probeY = 1200;
+    addNode('probing', 'HTTP Probing', 'Probing', '', '', rootX, probeY, 'merge');
 
-    addNode('httpx', 'httpx', 'Probing', 'cat all_subdomains.txt | httpx -silent -o live_subdomains.txt', 'Fast HTTP toolkit', enumCenter - 300, probeY + 200, 'probing');
-    addNode('httprobe', 'httprobe', 'Probing', 'cat all_subdomains.txt | httprobe | tee -a alive_subdomains.txt', 'Take domains and probe for http/https', enumCenter + 300, probeY + 200, 'probing');
+    // Probing Tools - Spread out
+    addNode('httpx', 'httpx', 'Probing', 'cat all_subdomains.txt | httpx -silent -o live_subdomains.txt', '', rootX - 400, probeY + 250, 'probing');
+    addNode('httprobe', 'httprobe', 'Probing', 'cat all_subdomains.txt | httprobe | tee -a alive_subdomains.txt', '', rootX + 400, probeY + 250, 'probing');
 
 
-    // Branch C: Port & IP (Below Probing)
+    // Branch C: Port & IP (Below Probing, Far Right)
     const portY = 1700;
-    const portX = enumCenter + 1200; // Far right
-    addNode('port-ip', 'Port & IP Scanning', 'Port Scanning', '', ' resolving IPs and scanning ports', portX, portY, 'probing'); // Logically after probing? or parallel?
+    const portX = 2600;
+    addNode('port-ip', 'Port & IP Scanning', 'Port Scanning', '', '', portX, portY, 'probing');
 
-    addNode('dnsx', 'dnsx', 'Port Scanning', 'dnsx -l live_subdomains.txt -a -resp-only -o live_ips.txt', 'DNS toolkit', portX - 300, portY + 200, 'port-ip');
-    addNode('shodanx', 'Shodanx', 'Port Scanning', 'shodanx domain --domain "target.com"', 'Shodan CLI', portX, portY + 200, 'port-ip');
-    addNode('naabu', 'Naabu', 'Port Scanning', 'naabu -list live_subs.txt -o naabu_scans.txt', 'Fast port scanner', portX + 300, portY + 200, 'port-ip');
+    addNode('dnsx', 'dnsx', 'Port Scanning', 'dnsx -l live_subdomains.txt -a -resp-only -o live_ips.txt', '', portX - 400, portY + 250, 'port-ip');
+    addNode('shodanx', 'Shodanx', 'Port Scanning', `shodanx domain --domain "${domain}"`, '', portX, portY + 250, 'port-ip');
+    addNode('naabu', 'Naabu', 'Port Scanning', 'naabu -list live_subs.txt -o naabu_scans.txt', '', portX + 400, portY + 250, 'port-ip');
 
 
-    // Branch D: Fingerprinting (Below httpx)
+    // Branch D: Fingerprinting (Below httpx, Left)
     const fingerY = 1700;
-    const fingerX = enumCenter - 600;
-    addNode('fingerprint', 'Fingerprinting', 'Fingerprinting', '', 'Identify technologies and WAF', fingerX, fingerY, 'httpx');
-    addNode('httpx-tech', 'httpx Tech Detect', 'Fingerprinting', 'httpx -list live_subdomains.txt -silent status-code -tech-detect -title -sc -location td -cl -probe -o httpx_output.txt', 'Detailed fingerprinting', fingerX - 200, fingerY + 200, 'fingerprint');
-    addNode('waf', 'WAF ID', 'Fingerprinting', 'cat httpx_output.txt | grep 403', 'Identify WAFs', fingerX + 200, fingerY + 200, 'fingerprint');
+    const fingerX = 600;
+    addNode('fingerprint', 'Fingerprinting', 'Fingerprinting', '', '', fingerX, fingerY, 'httpx');
+    addNode('httpx-tech', 'httpx Tech Detect', 'Fingerprinting', 'httpx -list live_subdomains.txt -silent status-code -tech-detect -title -sc -location td -cl -probe -o httpx_output.txt', '', fingerX - 300, fingerY + 250, 'fingerprint');
+    addNode('waf', 'WAF ID', 'Fingerprinting', 'cat httpx_output.txt | grep 403', '', fingerX + 300, fingerY + 250, 'fingerprint');
 
-    // Branch E: Visual Recon (Below httpx)
+    // Branch E: Visual Recon (Below httpx, Center-Left)
     const visualY = 1700;
-    const visualX = enumCenter; // Center
-    addNode('visual', 'Visual Recon', 'Visual Recon', '', 'Screenshots', visualX, visualY, 'httpx');
-    addNode('aquatone', 'Aquatone', 'Visual Recon', 'cat live_subdomains.txt | aquatone -out screenshots', 'Visual inspection tool', visualX - 200, visualY + 200, 'visual');
-    addNode('gowitness', 'Gowitness', 'Visual Recon', 'gowitness scan file -f live_subdomains.txt -threads 10 --screenshot-path screenshots', 'Golang screenshot tool', visualX + 200, visualY + 200, 'visual');
+    const visualX = 1400;
+    addNode('visual', 'Visual Recon', 'Visual Recon', '', '', visualX, visualY, 'httpx');
+    addNode('aquatone', 'Aquatone', 'Visual Recon', 'cat live_subdomains.txt | aquatone -out screenshots', '', visualX - 300, visualY + 250, 'visual');
+    addNode('gowitness', 'Gowitness', 'Visual Recon', 'gowitness scan file -f live_subdomains.txt -threads 10 --screenshot-path screenshots', '', visualX + 300, visualY + 250, 'visual');
 
-    // Branch F: Content Discovery (Way below)
-    const contentY = 2200;
-    const contentX = enumCenter - 900;
-    addNode('content-disc', 'Content Discovery', 'Content Discovery', '', 'Directory bruteforce', contentX, contentY, 'httpx');
-    addNode('ffuf-dir', 'FFUF Dir', 'Content Discovery', 'ffuf -u https://target.com/FUZZ -w //path/to/wordlist.txt', 'Fast web fuzzer', contentX - 300, contentY + 200, 'content-disc');
-    addNode('gobuster', 'Gobuster', 'Content Discovery', 'gobuster dir --url https://target.com --wordlist /path/to/wordlist.txt', 'Directory/File/DNS busting', contentX, contentY + 200, 'content-disc');
-    addNode('dirsearch', 'Dirsearch', 'Content Discovery', 'dirsearch -u https://target.com/ -w /usr/share/wordlists/custom.txt --full-url --random-agent -x 404,400 -e php,html,js,json,ini', 'Advanced web path scanner', contentX + 300, contentY + 200, 'content-disc');
+    // Branch F: Content Discovery (Way below Fingerprint)
+    const contentY = 2400;
+    const contentX = 800;
+    addNode('content-disc', 'Content Discovery', 'Content Discovery', '', '', contentX, contentY, 'httpx');
+    addNode('ffuf-dir', 'FFUF Dir', 'Content Discovery', `ffuf -u https://${domain}/FUZZ -w //path/to/wordlist.txt`, '', contentX - 450, contentY + 250, 'content-disc');
+    addNode('gobuster', 'Gobuster', 'Content Discovery', `gobuster dir --url https://${domain} --wordlist /path/to/wordlist.txt`, '', contentX, contentY + 250, 'content-disc');
+    addNode('dirsearch', 'Dirsearch', 'Content Discovery', `dirsearch -u https://${domain}/ -w /usr/share/wordlists/custom.txt --full-url --random-agent -x 404,400 -e php,html,js,json,ini`, '', contentX + 450, contentY + 250, 'content-disc');
 
-    // Branch G: URL Extraction
-    const urlY = 2200;
-    const urlX = enumCenter + 900;
-    addNode('urls', 'URL Extraction', 'URL Extraction', '', 'Wayback machine etc', urlX, urlY, 'httpx');
-    addNode('wayback', 'Waybackurls', 'URL Extraction', 'cat live_subs.txt | waybackurls | anew wayback_urls.txt', 'Fetch known URLs from Wayback', urlX - 300, urlY + 200, 'urls');
-    addNode('gau', 'Gau', 'URL Extraction', 'cat live_subs.txt | gau | anew gau_urls.txt', 'Get All Urls', urlX, urlY + 200, 'urls');
-    addNode('katana', 'Katana', 'URL Extraction', 'katana -list live_subdomain.txt -f qurl | anew katana_urls.txt', 'Crawling and spidering', urlX + 300, urlY + 200, 'urls');
+    // Branch G: URL Extraction (Below Visual)
+    const urlY = 2400;
+    const urlX = 2200;
+    addNode('urls', 'URL Extraction', 'URL Extraction', '', '', urlX, urlY, 'httpx');
+    addNode('wayback', 'Waybackurls', 'URL Extraction', 'cat live_subs.txt | waybackurls | anew wayback_urls.txt', '', urlX - 450, urlY + 250, 'urls');
+    addNode('gau', 'Gau', 'URL Extraction', 'cat live_subs.txt | gau | anew gau_urls.txt', '', urlX, urlY + 250, 'urls');
+    addNode('katana', 'Katana', 'URL Extraction', 'katana -list live_subdomain.txt -f qurl | anew katana_urls.txt', '', urlX + 450, urlY + 250, 'urls');
 
     // Branch H: Vuln Filtering (Below URLs)
-    const vulnY = 2600;
+    const vulnY = 3000;
     const vulnX = urlX;
-    addNode('vuln', 'Vuln Filtering', 'Vulnerability Filtering', '', 'GF patterns', vulnX, vulnY, 'katana');
-    addNode('gf-xss', 'GF XSS', 'Vulnerability Filtering', 'cat all_urls.txt | gf xss | anew xss_candidates.txt', 'Filter for XSS params', vulnX - 300, vulnY + 200, 'vuln');
-    addNode('gf-sqli', 'GF SQLi', 'Vulnerability Filtering', 'cat all_urls.txt | gf sqli | anew sqli_candidates.txt', 'Filter for SQLi params', vulnX, vulnY + 200, 'vuln');
-    addNode('gf-ssti', 'GF SSTI', 'Vulnerability Filtering', 'cat all_urls.txt | gf ssti| anew ssti_candidates.txt', 'Filter for SSTI params', vulnX + 300, vulnY + 200, 'vuln');
+    addNode('vuln', 'Vuln Filtering', 'Vulnerability Filtering', '', '', vulnX, vulnY, 'katana');
+    addNode('gf-xss', 'GF XSS', 'Vulnerability Filtering', 'cat all_urls.txt | gf xss | anew xss_candidates.txt', '', vulnX - 400, vulnY + 250, 'vuln');
+    addNode('gf-sqli', 'GF SQLi', 'Vulnerability Filtering', 'cat all_urls.txt | gf sqli | anew sqli_candidates.txt', '', vulnX, vulnY + 250, 'vuln');
+    addNode('gf-ssti', 'GF SSTI', 'Vulnerability Filtering', 'cat all_urls.txt | gf ssti| anew ssti_candidates.txt', '', vulnX + 400, vulnY + 250, 'vuln');
 
     return { nodes, edges };
 };
