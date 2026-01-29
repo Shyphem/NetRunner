@@ -148,7 +148,7 @@ const SidebarEditor = ({ open, onOpenChange, node, onUpdate, onDelete }: Sidebar
                     )}
 
                     <div className="grid gap-2">
-                        <Label htmlFor="content">Documentation</Label>
+                        <Label htmlFor="content">Results</Label>
                         <RichTextEditor
                             content={content}
                             onChange={handleContentChange}
