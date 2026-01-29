@@ -1,4 +1,0 @@
-imap.shyphem.fr
-mail.shyphem.fr
-pop.shyphem.fr
-smtp.shyphem.fr

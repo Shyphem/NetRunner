@@ -1,6 +1,0 @@
-mail.shyphem.fr
-pop.shyphem.fr
-imap.shyphem.fr
-www.shyphem.fr
-shyphem.fr
-smtp.shyphem.fr
